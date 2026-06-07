@@ -56,6 +56,7 @@ const updatePosition = () => {
 }
 
 const handleClose = () => {
+  // 关闭悬浮窗（主进程会自动恢复播放器窗口）
   ipc.send('pip:toggle')
 }
 

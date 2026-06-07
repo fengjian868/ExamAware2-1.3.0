@@ -1,10 +1,8 @@
 import { BrowserWindow, ipcMain } from 'electron'
-import { is } from '@electron-toolkit/utils'
 import { windowManager } from './windowManager'
 import { appLogger } from '../logging/winstonLogger'
 
 let pipWindow: BrowserWindow | null = null
-let pipCleanup: (() => void) | null = null
 
 export function createPipWindow(options?: {
   showRemaining?: boolean
@@ -20,8 +18,8 @@ export function createPipWindow(options?: {
     route: 'pip',
     options: {
       ...commonOptions(),
-      width: 320,
-      height: 160,
+      width: 380,
+      height: 200,
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
@@ -42,10 +40,12 @@ export function createPipWindow(options?: {
 
       // 发送初始选项
       setTimeout(() => {
-        w.webContents.send('pip:init', {
-          showRemaining: options?.showRemaining ?? true,
-          showCurrent: options?.showCurrent ?? false
-        })
+        if (!w.isDestroyed()) {
+          w.webContents.send('pip:init', {
+            showRemaining: options?.showRemaining ?? true,
+            showCurrent: options?.showCurrent ?? false
+          })
+        }
       }, 500)
 
       const onClose = () => {
@@ -80,6 +80,23 @@ export function sendPipData(data: { remainingTime?: string; currentTime?: string
   }
 }
 
+function restorePlayerWindow(): void {
+  try {
+    const playerWin = windowManager.get('player')
+    if (playerWin && !playerWin.isDestroyed()) {
+      if (playerWin.isMinimized()) {
+        playerWin.restore()
+      }
+      if (!playerWin.isVisible()) {
+        playerWin.show()
+      }
+      playerWin.focus()
+    }
+  } catch (error) {
+    appLogger.warn('[pipWindow] failed to restore player window', error as Error)
+  }
+}
+
 export function setupPipIpc(): () => void {
   const onToggle = (
     _event: Electron.IpcMainEvent,
@@ -87,6 +104,7 @@ export function setupPipIpc(): () => void {
   ) => {
     if (isPipWindowOpen()) {
       closePipWindow()
+      restorePlayerWindow()
     } else {
       createPipWindow(opts)
     }

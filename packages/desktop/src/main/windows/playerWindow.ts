@@ -4,7 +4,7 @@ import { is } from '@electron-toolkit/utils'
 import { windowManager } from './windowManager'
 import { appLogger } from '../logging/winstonLogger'
 import { setSharedConfig } from '../state/sharedConfigStore'
-import { closePipWindow } from './pipWindow'
+import { closePipWindow, isPipWindowOpen } from './pipWindow'
 
 export function createPlayerWindow(configPath: string): BrowserWindow {
   return windowManager.open(({ commonOptions }) => ({
@@ -18,6 +18,11 @@ export function createPlayerWindow(configPath: string): BrowserWindow {
       kiosk: !is.dev
     },
     setup: (playerWindow) => {
+      // 创建播放器窗口时，如果悬浮窗打开则自动关闭
+      if (isPipWindowOpen()) {
+        closePipWindow()
+      }
+
       if (!is.dev) {
         playerWindow.setAlwaysOnTop(true, 'screen-saver')
       }
