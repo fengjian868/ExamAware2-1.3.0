@@ -97,6 +97,17 @@ function restorePlayerWindow(): void {
   }
 }
 
+function minimizePlayerWindow(): void {
+  try {
+    const playerWin = windowManager.get('player')
+    if (playerWin && !playerWin.isDestroyed()) {
+      playerWin.minimize()
+    }
+  } catch (error) {
+    appLogger.warn('[pipWindow] failed to minimize player window', error as Error)
+  }
+}
+
 export function setupPipIpc(): () => void {
   const onToggle = (
     _event: Electron.IpcMainEvent,
@@ -107,6 +118,7 @@ export function setupPipIpc(): () => void {
       restorePlayerWindow()
     } else {
       createPipWindow(opts)
+      minimizePlayerWindow()
     }
   }
 
