@@ -19,30 +19,30 @@
           </div>
         </t-card>
       </t-col>
-      <!-- <t-col :span="4">
-        <t-card class="card-button" @click="selectFile">
-          <div class="card-content">
-            <t-icon name="server" size="60px" class="card-button-icon"></t-icon>
-            <p>连接服务器</p>
-          </div>
-        </t-card>
-      </t-col> -->
     </t-row>
 
-    <!-- 上次放映的文件 -->
-    <div v-if="lastFilePath" class="last-file-section">
+    <!-- 最近放映的文件列表 -->
+    <div v-if="recentFiles.length" class="last-file-section">
       <t-divider />
-      <p class="last-file-title">上次放映</p>
-      <t-card class="card-button last-file-card" @click="playLastFile">
+      <p class="last-file-title">最近放映</p>
+      <t-card
+        v-for="(item, index) in recentFiles"
+        :key="item.path"
+        class="card-button last-file-card"
+        @click="playFile(item.path)"
+      >
         <div class="card-content last-file-content">
           <t-icon name="history" size="32px" class="card-button-icon"></t-icon>
           <div class="last-file-info">
-            <p class="last-file-name">{{ lastFileName }}</p>
-            <p class="last-file-path">{{ lastFilePath }}</p>
+            <p class="last-file-name">{{ getFileName(item.path) }}</p>
+            <p class="last-file-path">{{ item.path }}</p>
           </div>
-          <t-button theme="primary" size="small" @click.stop="playLastFile">
+          <t-button theme="primary" size="small" @click.stop="playFile(item.path)">
             <template #icon><t-icon name="play-circle" /></template>
             放映
+          </t-button>
+          <t-button theme="default" variant="text" size="small" @click.stop="removeRecent(index)">
+            <template #icon><t-icon name="close" /></template>
           </t-button>
         </div>
       </t-card>
@@ -57,39 +57,92 @@ import { createPlayerLauncher } from '@renderer/services/playerLauncher'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useSettingRef } from '@renderer/composables/useSetting'
 
-const LAST_FILE_KEY = 'examaware:last-played-file'
+const RECENT_FILES_KEY = 'examaware:recent-played-files'
+const OLD_LAST_FILE_KEY = 'examaware:last-played-file'
+const MAX_RECENT = 5
+
+interface RecentFile {
+  path: string
+}
 
 const launcher = createPlayerLauncher()
 const router = useRouter()
-const lastFilePath = ref('')
+const recentFiles = ref<RecentFile[]>([])
 
 // 放映按钮行为设置
 const playButtonMode = useSettingRef<'direct' | 'select'>('player.playButtonMode', 'direct')
 
-const lastFileName = computed(() => {
-  if (!lastFilePath.value) return ''
-  const parts = lastFilePath.value.split(/[\\/]/)
-  return parts[parts.length - 1] || lastFilePath.value
-})
+const lastFilePath = computed(() => recentFiles.value[0]?.path || '')
 
-const loadLastFile = () => {
+const getFileName = (path: string): string => {
+  if (!path) return ''
+  const parts = path.split(/[\\/]/)
+  return parts[parts.length - 1] || path
+}
+
+const loadRecentFiles = () => {
   try {
-    const stored = localStorage.getItem(LAST_FILE_KEY)
-    if (stored) lastFilePath.value = stored
+    // 兼容旧的单文件存储格式
+    const stored = localStorage.getItem(RECENT_FILES_KEY)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed)) {
+        recentFiles.value = parsed
+          .filter((f: any) => f && typeof f.path === 'string')
+          .slice(0, MAX_RECENT)
+        return
+      }
+    }
+    // 旧格式迁移
+    const old = localStorage.getItem(OLD_LAST_FILE_KEY)
+    if (old) {
+      recentFiles.value = [{ path: old }]
+      saveRecentFiles()
+      localStorage.removeItem(OLD_LAST_FILE_KEY)
+    }
   } catch {}
 }
 
-const saveLastFile = (path: string) => {
+const saveRecentFiles = () => {
   try {
-    localStorage.setItem(LAST_FILE_KEY, path)
+    localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(recentFiles.value))
   } catch {}
+}
+
+const addRecentFile = (path: string) => {
+  // 去重：已存在则移到最前
+  recentFiles.value = recentFiles.value.filter((f) => f.path !== path)
+  recentFiles.value.unshift({ path })
+  // 最多保留 MAX_RECENT 条
+  recentFiles.value = recentFiles.value.slice(0, MAX_RECENT)
+  saveRecentFiles()
+}
+
+const removeRecent = (index: number) => {
+  recentFiles.value.splice(index, 1)
+  recentFiles.value = [...recentFiles.value]
+  saveRecentFiles()
 }
 
 const selectFile = async () => {
   const path = await launcher.selectLocalAndOpen()
   if (path) {
-    saveLastFile(path)
-    lastFilePath.value = path
+    addRecentFile(path)
+  }
+}
+
+const playFile = async (path: string) => {
+  if (!path) {
+    MessagePlugin.warning('文件路径无效')
+    return
+  }
+  try {
+    await launcher.openWith({ source: 'file', pathOrUrl: path })
+    // 播放后移到最前
+    addRecentFile(path)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '打开失败'
+    MessagePlugin.error(message)
   }
 }
 
@@ -100,15 +153,10 @@ const playLastFile = async () => {
     return
   }
   if (!lastFilePath.value) {
-    MessagePlugin.warning('没有上次放映的记录')
+    MessagePlugin.warning('没有最近放映的记录')
     return
   }
-  try {
-    await launcher.openWith({ source: 'file', pathOrUrl: lastFilePath.value })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '打开失败'
-    MessagePlugin.error(message)
-  }
+  await playFile(lastFilePath.value)
 }
 
 const openUrl = async () => {
@@ -116,8 +164,11 @@ const openUrl = async () => {
 }
 
 onMounted(() => {
-  loadLastFile()
+  loadRecentFiles()
 })
+
+// 暴露给外部可能的调用
+defineExpose({ playLastFile })
 </script>
 
 <style scoped>
@@ -157,7 +208,7 @@ p {
   padding-bottom: 15px;
 }
 
-/* 上次放映 */
+/* 最近放映 */
 .last-file-section {
   margin-top: 10px;
 }

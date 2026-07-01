@@ -56,11 +56,16 @@ onMounted(async () => {
   try {
     const autoEnter = await window.api.config.get('behavior.autoEnterPlayer', false)
     if (autoEnter && (route.path === '/' || route.path === '/mainpage')) {
-      // 自动进入播放页：有上次放映文件则直接打开播放器，没有则留在主界面
-      const LAST_FILE_KEY = 'examaware:last-played-file'
+      // 自动进入播放页：有最近放映文件则直接打开播放器，没有则留在主界面
       let lastFile = null
       try {
-        lastFile = localStorage.getItem(LAST_FILE_KEY)
+        const raw = localStorage.getItem('examaware:recent-played-files')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed) && parsed[0]?.path) lastFile = parsed[0].path
+        }
+        // 兼容旧格式
+        if (!lastFile) lastFile = localStorage.getItem('examaware:last-played-file')
       } catch {}
       if (lastFile && lastFile.trim()) {
         window.api?.ipc?.send('open-player-window', lastFile.trim())

@@ -88,10 +88,23 @@ export const homeButtonsModule: AppModule = {
       theme: 'warning',
       order: 2,
       action: async () => {
-        const LAST_FILE_KEY = 'examaware:last-played-file'
+        // 读取放映按钮行为设置
+        const mode = await window.api.config.get('player.playButtonMode', 'direct')
+        if (mode === 'select') {
+          const router = (app.config.globalProperties as any).$router
+          if (router) await router.push('/playerhome')
+          return
+        }
+        // 直接播放模式：读取最近放映文件
         let lastFile: string | null = null
         try {
-          lastFile = localStorage.getItem(LAST_FILE_KEY)
+          const raw = localStorage.getItem('examaware:recent-played-files')
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed) && parsed[0]?.path) lastFile = parsed[0].path
+          }
+          // 兼容旧格式
+          if (!lastFile) lastFile = localStorage.getItem('examaware:last-played-file')
         } catch {}
         if (lastFile && lastFile.trim()) {
           window.api?.ipc?.send('open-player-window', lastFile.trim())
