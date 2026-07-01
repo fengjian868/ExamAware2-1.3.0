@@ -28,8 +28,8 @@ jobs:
       ELECTRON_BUILDER_TMP_DIR: C:/Users/runneradmin/AppData/Local/Temp/eb-tmp-${{ github.run_id }}
 
     permissions:
-      actions: write
-      contents: read
+  actions: write
+  contents: write
 
     steps:
       - name: Checkout code
@@ -96,6 +96,37 @@ jobs:
           name: ExamAware-Windows-${{ github.run_id }}
           path: packages/desktop/out/*
           if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "v${{ github.run_number }}"
+          $exePath = Get-ChildItem -Path packages/desktop/out -Filter "*-setup.exe" | Select-Object -First 1
+          if (-not $exePath) {
+            Write-Error "No setup exe found in packages/desktop/out"
+            exit 1
+          }
+
+          $releaseNotes = @"
+          ## ExamAware v${{ github.run_number }}
+
+          ### 更新内容
+
+          - 新增：即将开考全屏特效提醒（橙色背景）
+          - 新增：经典主题倒计时颜色（考前橙色、考试中绿色、结束前橙色）
+          - 新增：设置中可选放映按钮行为（直接播放/选择文件）
+          - 新增：最近放映文件记忆（最多5个）
+          - 修复：即将开考提醒不显示的问题
+          - 修复：托盘退出时播放器窗口不关闭的问题
+          "@
+
+          gh release create $tag $exePath.FullName `
+            --title "ExamAware v${{ github.run_number }}" `
+            --notes $releaseNotes `
+            --latest
 
       - name: Generate download summary
         if: success()
