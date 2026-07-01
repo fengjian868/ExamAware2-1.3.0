@@ -75,6 +75,26 @@
 
         <div class="settings-item">
           <div class="settings-item-icon">
+            <TIcon name="play-circle-stroke" size="22px" />
+          </div>
+          <div class="settings-item-main">
+            <div class="settings-item-title">放映按钮行为</div>
+            <div class="settings-item-desc">
+              点击主界面"放映"按钮时，直接播放上次文件还是打开文件选择界面。
+            </div>
+          </div>
+          <div class="settings-item-action">
+            <t-radio-group v-model="playButtonMode">
+              <t-radio value="direct">直接播放</t-radio>
+              <t-radio value="select">选择文件</t-radio>
+            </t-radio-group>
+          </div>
+        </div>
+
+        <t-divider />
+
+        <div class="settings-item">
+          <div class="settings-item-icon">
             <TIcon name="view-module" size="22px" />
           </div>
           <div class="settings-item-main">
@@ -123,6 +143,11 @@ const largeClockEnabled = settings.ref<boolean>('largeClockEnabled', true, {
 const hdrHighlight = settings.ref<boolean>('hdrHighlight', false, {
   mapIn: (value) => Boolean(value),
   mapOut: (value) => Boolean(value)
+})
+
+const playButtonMode = settings.ref<'direct' | 'select'>('playButtonMode', 'direct', {
+  mapIn: (value) => (value === 'select' ? 'select' : 'direct'),
+  mapOut: (value) => value
 })
 
 const scaleMarks = {

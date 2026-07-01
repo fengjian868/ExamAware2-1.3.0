@@ -472,6 +472,10 @@ const examPlayer = useExamPlayer(
   mergedEventHandlers
 );
 
+// 确保 preCountdownMinutes 在初始挂载时就同步到 ExamPlayerCore，
+// 否则 onMounted 里的 updateConfig 会因 preCountdownMinutes 为 undefined 而不创建考前提醒任务
+examPlayer.updatePlayerConfig({ preCountdownMinutes: preCountdownMinutesState.value });
+
 // 监听 props 变化并更新播放器
 watch(
   () => props.examConfig,
@@ -768,6 +772,36 @@ watch(
       showExamReminder('alert', currentExam.value, {
         title: '考试即将结束',
         themeBaseColor: '#f1c40f',
+        forceWhiteText: true
+      });
+    }
+  }
+);
+
+// 兜底：考前倒计时提醒。当考试状态为 pending 且剩余时间 <= preCountdownMinutes 时触发。
+// 这是对任务队列 onPreExamStart 的补充，确保即使任务队列未创建也能弹出"即将开考"全屏提醒。
+let hasShownPreStartForExamId: string | null = null;
+watch(
+  () => examStatus.value?.timeRemaining,
+  (remainingMs) => {
+    if (!currentExam.value) return;
+    if (typeof remainingMs !== 'number') return;
+
+    const preMinutes = Number(preCountdownMinutesState.value) || 15;
+    if (preMinutes <= 0) return;
+
+    const examId = currentExam.value?.id || currentExam.value?.name;
+    if (
+      examStatus.value?.status === 'pending' &&
+      remainingMs > 0 &&
+      remainingMs <= preMinutes * 60 * 1000 &&
+      examId &&
+      hasShownPreStartForExamId !== examId
+    ) {
+      hasShownPreStartForExamId = examId;
+      showExamReminder('preStart', currentExam.value, {
+        title: `即将开考 · ${currentExam.value.name}`,
+        themeBaseColor: '#ff9800',
         forceWhiteText: true
       });
     }

@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, app } from 'electron'
 import * as fs from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { windowManager } from './windowManager'
@@ -23,6 +23,10 @@ export function createPlayerWindow(configPath: string): BrowserWindow {
 
       let allowClose = false
       const handleClose = (e: Electron.Event) => {
+        // 应用正在退出时允许关闭所有窗口
+        if ((app as any).isQuitting) {
+          allowClose = true
+        }
         if (!allowClose) {
           e.preventDefault()
           playerWindow.focus()

@@ -55,12 +55,16 @@ import { useRouter } from 'vue-router'
 import { ref, computed, onMounted } from 'vue'
 import { createPlayerLauncher } from '@renderer/services/playerLauncher'
 import { MessagePlugin } from 'tdesign-vue-next'
+import { useSettingRef } from '@renderer/composables/useSetting'
 
 const LAST_FILE_KEY = 'examaware:last-played-file'
 
 const launcher = createPlayerLauncher()
 const router = useRouter()
 const lastFilePath = ref('')
+
+// 放映按钮行为设置
+const playButtonMode = useSettingRef<'direct' | 'select'>('player.playButtonMode', 'direct')
 
 const lastFileName = computed(() => {
   if (!lastFilePath.value) return ''
@@ -90,6 +94,11 @@ const selectFile = async () => {
 }
 
 const playLastFile = async () => {
+  // 根据设置决定行为：直接播放或打开文件选择
+  if (playButtonMode.value === 'select') {
+    await selectFile()
+    return
+  }
   if (!lastFilePath.value) {
     MessagePlugin.warning('没有上次放映的记录')
     return

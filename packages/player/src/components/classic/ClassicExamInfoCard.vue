@@ -2,8 +2,18 @@
   <InfoCardWithIcon title="当前考试信息" :show-icon="false" :custom-class="customClass">
     <InfoItem label="当前科目" :value="ctx.currentExamName.value" />
     <InfoItem label="考试时间" :value="ctx.currentExamTimeRange.value" />
-    <InfoItem v-if="preCountdownText" label="距离开考" :value="preCountdownText" />
-    <InfoItem v-if="inProgressCountdown" label="剩余时间" :value="inProgressCountdown" />
+    <InfoItem
+      v-if="preCountdownText"
+      label="距离开考"
+      :value="preCountdownText"
+      value-class="countdown-pre"
+    />
+    <InfoItem
+      v-if="inProgressCountdown"
+      label="剩余时间"
+      :value="inProgressCountdown"
+      :value-class="inProgressCountdownClass"
+    />
     <div v-if="statusRow" class="info-row">
       <span class="info-label">考试状态:</span>
       <span class="info-value" :class="statusColorClass">{{ statusText }}</span>
@@ -197,6 +207,23 @@ const inProgressCountdown = computed(() => {
     return ctx.remainingTime?.value || '00:00';
   }
   return '';
+});
+
+// 考试进行中倒计时颜色：正常绿色，结束前alertTime分钟变橙色
+const inProgressCountdownClass = computed(() => {
+  const status = ctx.examStatus?.value?.status;
+  if (status !== 'inProgress') return '';
+  const timeRemaining = ctx.examStatus?.value?.timeRemaining;
+  const alertMinutes = Number(ctx.currentExam?.value?.alertTime);
+  if (
+    Number.isFinite(alertMinutes) &&
+    alertMinutes > 0 &&
+    typeof timeRemaining === 'number' &&
+    timeRemaining <= alertMinutes * 60 * 1000
+  ) {
+    return 'countdown-ending';
+  }
+  return 'countdown-active';
 });
 
 // ====== 页数统计逻辑（从 ExamInfoCard 复制） ======
@@ -420,6 +447,17 @@ const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 
 }
 .status-finished {
   color: #888888;
+}
+
+/* 倒计时颜色 */
+:deep(.countdown-pre) {
+  color: #ff9800 !important;
+}
+:deep(.countdown-active) {
+  color: #45a452 !important;
+}
+:deep(.countdown-ending) {
+  color: #ff9800 !important;
 }
 
 /* 材料信息行 */
