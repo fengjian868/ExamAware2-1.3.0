@@ -28,8 +28,8 @@ jobs:
       ELECTRON_BUILDER_TMP_DIR: C:/Users/runneradmin/AppData/Local/Temp/eb-tmp-${{ github.run_id }}
 
     permissions:
-  actions: write
-  contents: write
+      actions: write
+      contents: write
 
     steps:
       - name: Checkout code
@@ -123,10 +123,7 @@ jobs:
           - 修复：托盘退出时播放器窗口不关闭的问题
           "@
 
-          gh release create $tag $exePath.FullName `
-            --title "ExamAware v${{ github.run_number }}" `
-            --notes $releaseNotes `
-            --latest
+          gh release create $tag $exePath.FullName --title "ExamAware v${{ github.run_number }}" --notes $releaseNotes --latest
 
       - name: Generate download summary
         if: success()
