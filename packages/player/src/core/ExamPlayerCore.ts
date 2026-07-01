@@ -152,7 +152,7 @@ export class ExamPlayerCore {
             this.events.onPreExamStart?.(exam, preMinutes);
             this.reminder?.showColorfulAlert({
               title: `即将开考 · ${exam.name}`,
-              themeBaseColor: '#f1c40f',
+              themeBaseColor: '#ff9800',
               forceWhiteText: true
             });
           },
@@ -226,7 +226,7 @@ export class ExamPlayerCore {
           this.events.onPreExamStart?.(exam, preMinutes);
           this.reminder?.showColorfulAlert({
             title: `即将开考 · ${exam.name}`,
-            themeBaseColor: '#f1c40f',
+            themeBaseColor: '#ff9800',
             forceWhiteText: true
           });
         },
