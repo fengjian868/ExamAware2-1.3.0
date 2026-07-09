@@ -160,6 +160,16 @@ app.on('second-instance', (_event, argv) => {
   if (deepLinkArg) {
     deepLinkManager.enqueue(deepLinkArg)
   }
+  // 通过双击或命令行打开 .ea2 档案文件时，直接打开播放器窗口，而非主窗口
+  const ea2File = argv.find((arg) => arg.toLowerCase().endsWith('.ea2'))
+  if (ea2File) {
+    try {
+      createPlayerWindow(ea2File)
+      return
+    } catch (error) {
+      appLogger.error('[file-open] failed to open player window for .ea2', error as Error)
+    }
+  }
   try {
     const main = windowManager.get('main') ?? createMainWindow()
     if (main) {
@@ -332,9 +342,14 @@ app.whenReady().then(async () => {
     return false
   })()
 
-  // 如果有文件要打开，直接打开编辑器
+  // 如果有文件要打开，根据扩展名决定打开播放器还是编辑器
   if (fileToOpen) {
-    createEditorWindow(fileToOpen)
+    if (fileToOpen.toLowerCase().endsWith('.ea2')) {
+      // .ea2 档案文件：直接打开播放器
+      createPlayerWindow(fileToOpen)
+    } else {
+      createEditorWindow(fileToOpen)
+    }
     fileToOpen = null
   } else if (isAutoStart) {
     // 开机自启：不弹主窗口，先执行考试关联自启检查
@@ -527,7 +542,12 @@ app.on('open-file', (event, path) => {
   event.preventDefault()
   if (path.endsWith('.ea2') || path.endsWith('.json')) {
     if (app.isReady()) {
-      createEditorWindow(path)
+      if (path.toLowerCase().endsWith('.ea2')) {
+        // .ea2 档案文件：直接打开播放器
+        createPlayerWindow(path)
+      } else {
+        createEditorWindow(path)
+      }
     } else {
       fileToOpen = path
     }

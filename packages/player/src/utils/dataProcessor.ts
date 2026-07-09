@@ -10,7 +10,7 @@ export interface FormattedExamInfo {
   startTime: string;
   endTime: string;
   status: 'pending' | 'inProgress' | 'completed';
-  statusText: '未开始' | '进行中' | '已结束';
+  statusText: '未开始' | '即将开始' | '进行中' | '即将结束' | '已结束';
   rawData: ExamInfo;
 }
 
@@ -28,11 +28,16 @@ export class ExamDataProcessor {
   /**
    * 格式化考试数据用于表格显示
    */
-  static formatExamInfos(config: ExamConfig | null, currentTime: number): FormattedExamInfo[] {
+  static formatExamInfos(
+    config: ExamConfig | null,
+    currentTime: number,
+    preCountdownMinutes: number = 15
+  ): FormattedExamInfo[] {
     if (!config?.examInfos) return [];
 
     // 使用排序后的配置确保考试按时间顺序显示
     const sortedConfig = getSortedExamConfig(config);
+    const preMs = preCountdownMinutes * 60 * 1000;
 
     return sortedConfig.examInfos.map((exam: ExamInfo, index: number) => {
       const startDate = parseDateTime(exam.start);
@@ -41,15 +46,29 @@ export class ExamDataProcessor {
 
       // 判断考试状态
       let status: 'pending' | 'inProgress' | 'completed' = 'pending';
-      let statusText: '未开始' | '进行中' | '已结束' = '未开始';
+      let statusText: '未开始' | '即将开始' | '进行中' | '即将结束' | '已结束' = '未开始';
 
       if (now > endDate.getTime()) {
         status = 'completed';
         statusText = '已结束';
       } else if (now >= startDate.getTime()) {
         status = 'inProgress';
-        statusText = '进行中';
+        // 结束前 alertTime 分钟显示"即将结束"
+        const alertMs = (Number(exam.alertTime) || 0) * 60 * 1000;
+        if (alertMs > 0 && endDate.getTime() - now <= alertMs) {
+          statusText = '即将结束';
+        } else {
+          statusText = '进行中';
+        }
+      } else {
+        // 未开始：考前 preCountdownMinutes 内显示"即将开始"
+        if (startDate.getTime() - now <= preMs) {
+          statusText = '即将开始';
+        }
       }
+
+      // 计算总分钟数
+      const totalMinutes = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60));
 
       // 格式化日期
       const dateString = startDate.toLocaleDateString('zh-CN', {
@@ -73,7 +92,7 @@ export class ExamDataProcessor {
         name: exam.name,
         date: dateString,
         period,
-        timeRange: `${this.formatHourMinute(startDate)} ~ ${this.formatHourMinute(endDate)}`,
+        timeRange: `${this.formatHourMinute(startDate)} ~ ${this.formatHourMinute(endDate)}（共${totalMinutes}分钟）`,
         startTime: this.formatHourMinute(startDate),
         endTime: this.formatHourMinute(endDate),
         status,
@@ -156,8 +175,9 @@ export class ExamDataProcessor {
 
     const start = parseDateTime(exam.start);
     const end = parseDateTime(exam.end);
+    const totalMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
 
-    return `${this.formatHourMinute(start)} - ${this.formatHourMinute(end)}`;
+    return `${this.formatHourMinute(start)} - ${this.formatHourMinute(end)}（共${totalMinutes}分钟）`;
   }
 
   /**

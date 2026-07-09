@@ -55,6 +55,20 @@
         <div class="button-text">最小化</div>
       </button>
 
+      <!-- 打开文件按钮 -->
+      <button
+        class="action-button"
+        type="button"
+        aria-label="打开文件"
+        title="打开文件"
+        @click.stop="emit('openFile')"
+      >
+        <div class="button-icon">
+          <FolderOpenIcon />
+        </div>
+        <div class="button-text">打开文件</div>
+      </button>
+
       <!-- 播放设置按钮 -->
       <button class="action-button" type="button" @click="handlePlaybackSettings">
         <div class="button-icon">
@@ -168,6 +182,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'exit'): void;
   (e: 'minimize'): void;
+  (e: 'openFile'): void;
   (e: 'scaleChange', scale: number): void;
   (e: 'densityChange', density: UIDensity): void;
   (e: 'clockScaleChange', scale: number): void;
@@ -177,13 +192,15 @@ const emit = defineEmits<{
   (e: 'auxiliaryFontScaleChange', scale: number): void;
   (e: 'devReminderTest', preset: DevReminderPreset | DevReminderPayload): void;
   (e: 'devReminderHide'): void;
+  (e: 'openSettings'): void;
 }>();
 import {
   LogoutIcon,
   SettingIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  MinusIcon
+  MinusIcon,
+  FolderOpenIcon
 } from 'tdesign-icons-vue-next';
 
 const isDevMode = Boolean(import.meta.env?.DEV ?? false);
@@ -847,15 +864,8 @@ const handleToolClick = async (tool: PlayerToolbarItem, event: MouseEvent) => {
 
 const handlePlaybackSettings = () => {
   handleUserActivity();
-  console.log('打开播放设置弹窗');
-  tempScale.value = uiScale.value;
-  tempDensity.value = density.value;
-  tempLargeClockScale.value = largeClockScale.value;
-  tempLargeClockEnabled.value = largeClockEnabled.value;
-  tempExamInfoLargeFont.value = examInfoLargeFont.value;
-  tempMaterialFontScale.value = materialFontScale.value;
-  tempAuxiliaryFontScale.value = auxiliaryFontScale.value;
-  showSettings.value = true;
+  console.log('打开播放设置（外部窗口）');
+  emit('openSettings');
 };
 
 const handleSettingsConfirm = () => {
@@ -934,7 +944,7 @@ const formatScale = (value: number | string) => {
   z-index: 50;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 1rem)
     calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem)
     calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem)

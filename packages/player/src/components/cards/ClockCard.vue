@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
 import BaseCard from '../BaseCard.vue';
 import { parseDateTime } from '@dsz-examaware/core';
 
@@ -79,6 +79,30 @@ const PRE_COUNTDOWN_MS = computed(() => {
 
 // 考试结束后保留“考试已结束”提示的宽限期
 const EXAM_END_GRACE_MS = 60 * 1000; // 1 分钟
+
+// 跟踪当前播放器会话中是否经历过考试结束（inProgress -> completed 转换）
+const sawExamEndInSession = ref(false);
+watch(
+  () => ctx.examStatus?.value?.status,
+  (status, prevStatus) => {
+    if (status === 'completed' && prevStatus === 'inProgress') {
+      sawExamEndInSession.value = true;
+    }
+  }
+);
+
+// 获取下一场未开始的考试
+const nextUpcomingExam = computed(() => {
+  const list = ctx.sortedExamInfos?.value;
+  if (!list || !Array.isArray(list) || list.length === 0) return null;
+  const now = Date.now();
+  for (const exam of list) {
+    try {
+      if (parseDateTime(exam.start).getTime() > now) return exam;
+    } catch {}
+  }
+  return null;
+});
 
 // 判断是否所有考试都已结束
 const allExamsEnded = computed(() => {
@@ -142,8 +166,39 @@ const countdownState = computed(() => {
 
   // 考试已结束
   if (status === 'completed') {
-    // 1分钟宽限期内：红色「考试已结束」
-    if (inExamEndGrace.value) {
+    // 没有下一场：考试已全部结束
+    if (!hasNextExam.value || allExamsEnded.value) {
+      return {
+        label: '考试已全部结束',
+        showValue: false,
+        value: '',
+        text: '考试已结束',
+        labelClass: 'text-danger',
+        valueClass: ''
+      };
+    }
+
+    // 检查下一场是否在15分钟内
+    const next = nextUpcomingExam.value;
+    if (next) {
+      const nextStart = parseDateTime(next.start).getTime();
+      const timeToNext = nextStart - Date.now();
+      if (timeToNext <= PRE_COUNTDOWN_MS.value) {
+        // 下一场在15分钟内：开始倒计时
+        return {
+          label: '距离考试开始还剩',
+          showValue: true,
+          value: ctx.remainingTime?.value || '00:00',
+          text: '',
+          labelClass: '',
+          valueClass: 'countdown-value-warning'
+        };
+      }
+    }
+
+    // 下一场还远（超过15分钟）
+    // 如果是本次会话中考试刚结束 → 一直显示"考试已结束"（红色）
+    if (sawExamEndInSession.value || inExamEndGrace.value) {
       return {
         label: '考试已结束',
         showValue: false,
@@ -153,24 +208,14 @@ const countdownState = computed(() => {
         valueClass: ''
       };
     }
-    // 宽限期过后：检查下一场
-    if (hasNextExam.value) {
-      return {
-        label: '考试未开始',
-        showValue: false,
-        value: '',
-        text: '考试未开始',
-        labelClass: 'text-warning',
-        valueClass: ''
-      };
-    }
-    // 没有下一场
+
+    // 如果是重新打开播放器且考试已结束 → 显示"考试未开始"（黄色）
     return {
-      label: '考试已全部结束',
+      label: '考试未开始',
       showValue: false,
       value: '',
-      text: '考试已结束',
-      labelClass: 'text-danger',
+      text: '考试未开始',
+      labelClass: 'text-warning',
       valueClass: ''
     };
   }

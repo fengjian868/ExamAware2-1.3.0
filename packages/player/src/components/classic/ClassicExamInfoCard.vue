@@ -1,7 +1,7 @@
 <template>
   <InfoCardWithIcon title="当前考试信息" :show-icon="false" :custom-class="customClass">
     <InfoItem label="当前科目" :value="ctx.currentExamName.value" />
-    <InfoItem label="考试时间" :value="ctx.currentExamTimeRange.value" />
+    <InfoItem label="考试时间" :value="examTimeWithTotal" />
     <InfoItem
       v-if="preCountdownText"
       label="距离开考"
@@ -19,110 +19,159 @@
       <span class="info-value" :class="statusColorClass">{{ statusText }}</span>
     </div>
 
-    <!-- 页数统计（可选，由 props.showMaterial 控制） -->
+    <!-- 试卷信息：共 Y 张 共 X 页（张数在前，页数在后） -->
     <template v-if="showMaterial">
       <div class="material-row">
         <span class="material-label">试卷:</span>
         <span class="material-text">共</span>
-        <div class="number-control" :class="{ 'controls-hidden': !showControls.paperPages }">
-          <button v-show="showControls.paperPages" class="num-btn" @click="decrease('paperPages')">
-            -
-          </button>
-          <input
-            class="num-input"
-            type="number"
-            min="0"
-            :value="paperPages"
-            @change="setValue('paperPages', $event)"
-            @focus="handleInputFocus('paperPages')"
-          />
-          <button v-show="showControls.paperPages" class="num-btn" @click="increase('paperPages')">
-            +
-          </button>
-        </div>
-        <span class="material-text">页</span>
-        <span class="material-text">共</span>
-        <div class="number-control" :class="{ 'controls-hidden': !showControls.paperSheets }">
+        <div
+          class="number-control"
+          :class="{ 'controls-hidden': !showControls.paperSheets, disabled: !canEdit }"
+        >
           <button
             v-show="showControls.paperSheets"
             class="num-btn"
+            :class="{ 'num-btn-disabled': !canEdit || paperSheets >= MAX_SHEETS }"
+            :disabled="!canEdit"
             @click="decrease('paperSheets')"
           >
             -
           </button>
           <input
             class="num-input"
+            :class="{ 'num-input-disabled': !canEdit }"
             type="number"
             min="0"
+            :max="MAX_SHEETS"
             :value="paperSheets"
+            :disabled="!canEdit"
             @change="setValue('paperSheets', $event)"
             @focus="handleInputFocus('paperSheets')"
           />
           <button
             v-show="showControls.paperSheets"
             class="num-btn"
+            :class="{ 'num-btn-disabled': !canEdit || paperSheets >= MAX_SHEETS }"
+            :disabled="!canEdit"
             @click="increase('paperSheets')"
           >
             +
           </button>
         </div>
         <span class="material-text">张</span>
-      </div>
-
-      <div class="material-row">
-        <span class="material-label">答题卡:</span>
         <span class="material-text">共</span>
-        <div class="number-control" :class="{ 'controls-hidden': !showControls.answerPages }">
+        <div
+          class="number-control"
+          :class="{ 'controls-hidden': !showControls.paperPages, disabled: !canEdit }"
+        >
           <button
-            v-show="showControls.answerPages"
+            v-show="showControls.paperPages"
             class="num-btn"
-            @click="decrease('answerPages')"
+            :class="{ 'num-btn-disabled': !canEdit || paperPages >= MAX_PAGES }"
+            :disabled="!canEdit"
+            @click="decrease('paperPages')"
           >
             -
           </button>
           <input
             class="num-input"
+            :class="{ 'num-input-disabled': !canEdit }"
             type="number"
             min="0"
-            :value="answerPages"
-            @change="setValue('answerPages', $event)"
-            @focus="handleInputFocus('answerPages')"
+            :max="MAX_PAGES"
+            :value="paperPages"
+            :disabled="!canEdit"
+            @change="setValue('paperPages', $event)"
+            @focus="handleInputFocus('paperPages')"
           />
           <button
-            v-show="showControls.answerPages"
+            v-show="showControls.paperPages"
             class="num-btn"
-            @click="increase('answerPages')"
+            :class="{ 'num-btn-disabled': !canEdit || paperPages >= MAX_PAGES }"
+            :disabled="!canEdit"
+            @click="increase('paperPages')"
           >
             +
           </button>
         </div>
         <span class="material-text">页</span>
+      </div>
+
+      <!-- 答题卡信息：共 Y 张 共 X 页 -->
+      <div class="material-row">
+        <span class="material-label">答题卡:</span>
         <span class="material-text">共</span>
-        <div class="number-control" :class="{ 'controls-hidden': !showControls.answerSheets }">
+        <div
+          class="number-control"
+          :class="{ 'controls-hidden': !showControls.answerSheets, disabled: !canEdit }"
+        >
           <button
             v-show="showControls.answerSheets"
             class="num-btn"
+            :class="{ 'num-btn-disabled': !canEdit || answerSheets >= MAX_SHEETS }"
+            :disabled="!canEdit"
             @click="decrease('answerSheets')"
           >
             -
           </button>
           <input
             class="num-input"
+            :class="{ 'num-input-disabled': !canEdit }"
             type="number"
             min="0"
+            :max="MAX_SHEETS"
             :value="answerSheets"
+            :disabled="!canEdit"
             @change="setValue('answerSheets', $event)"
             @focus="handleInputFocus('answerSheets')"
           />
           <button
             v-show="showControls.answerSheets"
             class="num-btn"
+            :class="{ 'num-btn-disabled': !canEdit || answerSheets >= MAX_SHEETS }"
+            :disabled="!canEdit"
             @click="increase('answerSheets')"
           >
             +
           </button>
         </div>
         <span class="material-text">张</span>
+        <span class="material-text">共</span>
+        <div
+          class="number-control"
+          :class="{ 'controls-hidden': !showControls.answerPages, disabled: !canEdit }"
+        >
+          <button
+            v-show="showControls.answerPages"
+            class="num-btn"
+            :class="{ 'num-btn-disabled': !canEdit || answerPages >= MAX_PAGES }"
+            :disabled="!canEdit"
+            @click="decrease('answerPages')"
+          >
+            -
+          </button>
+          <input
+            class="num-input"
+            :class="{ 'num-input-disabled': !canEdit }"
+            type="number"
+            min="0"
+            :max="MAX_PAGES"
+            :value="answerPages"
+            :disabled="!canEdit"
+            @change="setValue('answerPages', $event)"
+            @focus="handleInputFocus('answerPages')"
+          />
+          <button
+            v-show="showControls.answerPages"
+            class="num-btn"
+            :class="{ 'num-btn-disabled': !canEdit || answerPages >= MAX_PAGES }"
+            :disabled="!canEdit"
+            @click="increase('answerPages')"
+          >
+            +
+          </button>
+        </div>
+        <span class="material-text">页</span>
       </div>
     </template>
   </InfoCardWithIcon>
@@ -130,6 +179,7 @@
 
 <script setup lang="ts">
 import { computed, inject, ref, watch } from 'vue';
+import { parseDateTime } from '@dsz-examaware/core';
 import InfoCardWithIcon from '../InfoCardWithIcon.vue';
 import InfoItem from '../InfoItem.vue';
 
@@ -140,6 +190,7 @@ export interface ExamPlayerCtx {
   examStatus?: any;
   remainingTime?: any;
   preCountdownMinutes?: any;
+  sortedExamInfos?: any;
   examInfoLargeFont?: { value: boolean };
   materialFontScale?: { value: number };
   classicShowMaterial?: { value: boolean };
@@ -149,39 +200,94 @@ const ctx = inject<ExamPlayerCtx>('ExamPlayerCtx')!;
 
 const showMaterial = computed(() => Boolean(ctx.classicShowMaterial?.value));
 
+const MAX_PAGES = 20;
+const MAX_SHEETS = 10;
+const PAGES_PER_SHEET = 4;
+
 const customClass = computed(() =>
   ['exam-info-card', ctx.examInfoLargeFont?.value ? 'exam-info-large' : '']
     .filter(Boolean)
     .join(' ')
 );
 
-// 考试状态
-const statusText = computed(() => {
-  const status = ctx.examStatus?.value?.status;
-  switch (status) {
-    case 'pending':
-      return '未开始';
-    case 'inProgress':
-      return '进行中';
-    case 'completed':
-      return '已结束';
-    default:
-      return '暂无安排';
-  }
+// 考试时间（带总分钟数）
+const examTimeWithTotal = computed(() => {
+  const exam = ctx.currentExam?.value;
+  if (!exam) return ctx.currentExamTimeRange?.value || '暂无安排';
+  const start = parseDateTime(exam.start);
+  const end = parseDateTime(exam.end);
+  const totalMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+  const startStr = start.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const endStr = end.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return `${startStr} - ${endStr}（共${totalMinutes}分钟）`;
 });
 
+// 是否所有考试都已结束
+const allExamsEnded = computed(() => {
+  const exams = ctx.sortedExamInfos?.value;
+  if (!exams || exams.length === 0) return false;
+  const now = Date.now();
+  return exams.every((exam: any) => parseDateTime(exam.end).getTime() <= now);
+});
+
+// 是否在考前倒计时窗口内（preStart）
+const isPreStart = computed(() => {
+  const status = ctx.examStatus?.value?.status;
+  const timeRemaining = ctx.examStatus?.value?.timeRemaining;
+  const preMs = (Number(ctx.preCountdownMinutes?.value ?? 15) || 15) * 60 * 1000;
+  return status === 'pending' && typeof timeRemaining === 'number' && timeRemaining <= preMs;
+});
+
+// 是否可以编辑页数（只在考前15分钟和考试时才能加减）
+const canEdit = computed(() => {
+  const status = ctx.examStatus?.value?.status;
+  return isPreStart.value || status === 'inProgress';
+});
+
+// 考试状态文本
+const statusText = computed(() => {
+  const status = ctx.examStatus?.value?.status;
+  if (status === 'completed' && allExamsEnded.value) return '考试已全部结束';
+  if (status === 'completed') return '已结束';
+  if (status === 'inProgress') {
+    const timeRemaining = ctx.examStatus?.value?.timeRemaining;
+    const alertMs = (Number(ctx.currentExam?.value?.alertTime) || 0) * 60 * 1000;
+    if (alertMs > 0 && typeof timeRemaining === 'number' && timeRemaining <= alertMs) {
+      return '即将结束';
+    }
+    return '进行中';
+  }
+  if (status === 'pending') {
+    if (isPreStart.value) return '即将开始';
+    return '未开始';
+  }
+  return '暂无安排';
+});
+
+// 考试状态颜色
 const statusColorClass = computed(() => {
   const status = ctx.examStatus?.value?.status;
-  switch (status) {
-    case 'pending':
-      return 'status-pending';
-    case 'inProgress':
-      return 'status-ongoing';
-    case 'completed':
-      return 'status-finished';
-    default:
-      return '';
+  if (status === 'completed') return 'status-finished';
+  if (status === 'inProgress') {
+    const timeRemaining = ctx.examStatus?.value?.timeRemaining;
+    const alertMs = (Number(ctx.currentExam?.value?.alertTime) || 0) * 60 * 1000;
+    if (alertMs > 0 && typeof timeRemaining === 'number' && timeRemaining <= alertMs) {
+      return 'status-preend';
+    }
+    return 'status-ongoing';
   }
+  if (status === 'pending') {
+    return isPreStart.value ? 'status-prestart' : 'status-pending';
+  }
+  return '';
 });
 
 const statusRow = computed(() => {
@@ -226,68 +332,14 @@ const inProgressCountdownClass = computed(() => {
   return 'countdown-active';
 });
 
-// ====== 页数统计逻辑（从 ExamInfoCard 复制） ======
-const STORAGE_KEY = 'examaware:materialCounts';
+// ====== 页数统计逻辑 ======
+// 每次打开播放器重置页数（不持久化到 localStorage）
+const paperPages = ref(0);
+const paperSheets = ref(0);
+const answerPages = ref(0);
+const answerSheets = ref(0);
 
-const loadCounts = () => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
-const saveCounts = (counts: Record<string, number>) => {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(counts));
-  } catch {}
-};
-
-const stored = loadCounts();
-const paperPages = ref(stored?.paperPages ?? 0);
-const paperSheets = ref(stored?.paperSheets ?? 0);
-const answerPages = ref(stored?.answerPages ?? 0);
-const answerSheets = ref(stored?.answerSheets ?? 0);
-
-watch(
-  [paperPages, paperSheets, answerPages, answerSheets],
-  ([pp, ps, ap, as]) => {
-    saveCounts({ paperPages: pp, paperSheets: ps, answerPages: ap, answerSheets: as });
-  },
-  { deep: true }
-);
-
-// 考试结束后自动重置
-const lastExamKey = ref<string>('');
-watch(
-  () => ctx.examStatus?.value?.status,
-  (status, prevStatus) => {
-    const examKey = ctx.currentExam?.value?.id || ctx.currentExam?.value?.name || '';
-    if (
-      status === 'completed' &&
-      prevStatus === 'inProgress' &&
-      examKey &&
-      lastExamKey.value !== examKey
-    ) {
-      lastExamKey.value = examKey;
-      paperPages.value = 0;
-      paperSheets.value = 0;
-      answerPages.value = 0;
-      answerSheets.value = 0;
-      saveCounts({ paperPages: 0, paperSheets: 0, answerPages: 0, answerSheets: 0 });
-      showControls.value = {
-        paperPages: true,
-        paperSheets: true,
-        answerPages: true,
-        answerSheets: true
-      };
-    }
-  }
-);
-
+// 加减按钮显隐控制
 const showControls = ref({
   paperPages: true,
   paperSheets: true,
@@ -309,8 +361,11 @@ const clearHideTimer = (field: string) => {
   }
 };
 
+// 只在考试进行中且值>0时才自动隐藏
 const scheduleHide = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerSheets') => {
   clearHideTimer(field);
+  // 考试未开始时不隐藏
+  if (!canEdit.value || ctx.examStatus?.value?.status !== 'inProgress') return;
   hideTimers[field] = setTimeout(() => {
     const val =
       field === 'paperPages'
@@ -320,7 +375,10 @@ const scheduleHide = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'ans
           : field === 'answerPages'
             ? answerPages.value
             : answerSheets.value;
-    if (val > 0) showControls.value[field] = false;
+    // 考试进行中且值大于0时才隐藏
+    if (val > 0) {
+      showControls.value[field] = false;
+    }
   }, 10000);
 };
 
@@ -331,79 +389,168 @@ const showControlsAndScheduleHide = (
   scheduleHide(field);
 };
 
+// 监听状态变化：考试未开始时始终显示加减号；考试开始后值>0则隐藏
 watch(
-  () => [paperPages.value, paperSheets.value, answerPages.value, answerSheets.value] as const,
-  ([pp, ps, ap, as]) => {
-    if (pp > 0 && showControls.value.paperPages) scheduleHide('paperPages');
-    if (ps > 0 && showControls.value.paperSheets) scheduleHide('paperSheets');
-    if (ap > 0 && showControls.value.answerPages) scheduleHide('answerPages');
-    if (as > 0 && showControls.value.answerSheets) scheduleHide('answerSheets');
+  () => [ctx.examStatus?.value?.status, isPreStart.value] as const,
+  ([status, preStart]) => {
+    if (status === 'pending') {
+      // 未开始（含即将开始）：始终显示加减号
+      showControls.value = {
+        paperPages: true,
+        paperSheets: true,
+        answerPages: true,
+        answerSheets: true
+      };
+      // 清除所有隐藏定时器
+      Object.keys(hideTimers).forEach(clearHideTimer);
+    } else if (status === 'inProgress') {
+      // 考试进行中：值为0时显示，值>0时启动隐藏计时
+      (['paperPages', 'paperSheets', 'answerPages', 'answerSheets'] as const).forEach((field) => {
+        const val =
+          field === 'paperPages'
+            ? paperPages.value
+            : field === 'paperSheets'
+              ? paperSheets.value
+              : field === 'answerPages'
+                ? answerPages.value
+                : answerSheets.value;
+        if (val === 0) {
+          showControls.value[field] = true;
+          clearHideTimer(field);
+        } else {
+          scheduleHide(field);
+        }
+      });
+    }
   },
   { immediate: true }
 );
 
+// 张数联动页数：1张=4页
+const syncPagesFromSheets = (
+  sheetsField: 'paperSheets' | 'answerSheets',
+  pagesField: 'paperPages' | 'answerPages'
+) => {
+  const sheets = sheetsField === 'paperSheets' ? paperSheets.value : answerSheets.value;
+  const newPages = sheets * PAGES_PER_SHEET;
+  if (newPages <= MAX_PAGES) {
+    if (pagesField === 'paperPages') paperPages.value = newPages;
+    else answerPages.value = newPages;
+  } else {
+    // 超过上限则截断张数
+    const maxSheets = Math.floor(MAX_PAGES / PAGES_PER_SHEET);
+    if (sheetsField === 'paperSheets') paperSheets.value = maxSheets;
+    else answerSheets.value = maxSheets;
+    if (pagesField === 'paperPages') paperPages.value = maxSheets * PAGES_PER_SHEET;
+    else answerPages.value = maxSheets * PAGES_PER_SHEET;
+  }
+};
+
 const increase = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerSheets') => {
+  if (!canEdit.value) return;
   switch (field) {
     case 'paperPages':
-      paperPages.value++;
+      if (paperPages.value < MAX_PAGES) paperPages.value++;
       break;
     case 'paperSheets':
-      paperSheets.value++;
+      if (paperSheets.value < MAX_SHEETS) {
+        paperSheets.value++;
+        syncPagesFromSheets('paperSheets', 'paperPages');
+      }
       break;
     case 'answerPages':
-      answerPages.value++;
+      if (answerPages.value < MAX_PAGES) answerPages.value++;
       break;
     case 'answerSheets':
-      answerSheets.value++;
+      if (answerSheets.value < MAX_SHEETS) {
+        answerSheets.value++;
+        syncPagesFromSheets('answerSheets', 'answerPages');
+      }
       break;
   }
   showControlsAndScheduleHide(field);
+  // 如果改的是张数，也要刷新页数的显隐
+  if (field === 'paperSheets') showControlsAndScheduleHide('paperPages');
+  if (field === 'answerSheets') showControlsAndScheduleHide('answerPages');
 };
 
 const decrease = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerSheets') => {
+  if (!canEdit.value) return;
   switch (field) {
     case 'paperPages':
       if (paperPages.value > 0) paperPages.value--;
       break;
     case 'paperSheets':
-      if (paperSheets.value > 0) paperSheets.value--;
+      if (paperSheets.value > 0) {
+        paperSheets.value--;
+        syncPagesFromSheets('paperSheets', 'paperPages');
+      }
       break;
     case 'answerPages':
       if (answerPages.value > 0) answerPages.value--;
       break;
     case 'answerSheets':
-      if (answerSheets.value > 0) answerSheets.value--;
+      if (answerSheets.value > 0) {
+        answerSheets.value--;
+        syncPagesFromSheets('answerSheets', 'answerPages');
+      }
       break;
   }
   showControlsAndScheduleHide(field);
+  if (field === 'paperSheets') showControlsAndScheduleHide('paperPages');
+  if (field === 'answerSheets') showControlsAndScheduleHide('answerPages');
 };
 
 const setValue = (
   field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerSheets',
   event: Event
 ) => {
+  if (!canEdit.value) return;
   const target = event.target as HTMLInputElement;
-  const val = Math.max(0, Math.floor(Number(target.value)) || 0);
+  let val = Math.max(0, Math.floor(Number(target.value)) || 0);
   switch (field) {
     case 'paperPages':
-      paperPages.value = val;
+      paperPages.value = Math.min(val, MAX_PAGES);
       break;
     case 'paperSheets':
-      paperSheets.value = val;
+      paperSheets.value = Math.min(val, MAX_SHEETS);
+      syncPagesFromSheets('paperSheets', 'paperPages');
       break;
     case 'answerPages':
-      answerPages.value = val;
+      answerPages.value = Math.min(val, MAX_PAGES);
       break;
     case 'answerSheets':
-      answerSheets.value = val;
+      answerSheets.value = Math.min(val, MAX_SHEETS);
+      syncPagesFromSheets('answerSheets', 'answerPages');
       break;
   }
   showControlsAndScheduleHide(field);
+  if (field === 'paperSheets') showControlsAndScheduleHide('paperPages');
+  if (field === 'answerSheets') showControlsAndScheduleHide('answerPages');
 };
 
 const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerSheets') => {
   showControlsAndScheduleHide(field);
 };
+
+// 考试结束后自动重置
+watch(
+  () => ctx.examStatus?.value?.status,
+  (status, prevStatus) => {
+    if (status === 'completed' && prevStatus === 'inProgress') {
+      paperPages.value = 0;
+      paperSheets.value = 0;
+      answerPages.value = 0;
+      answerSheets.value = 0;
+      showControls.value = {
+        paperPages: true,
+        paperSheets: true,
+        answerPages: true,
+        answerSheets: true
+      };
+    }
+  }
+);
 </script>
 
 <style scoped>
@@ -439,14 +586,25 @@ const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 
   font-weight: 600;
 }
 
+/* 考试状态颜色 */
 .status-pending {
   color: #ff9800;
 }
+
+.status-prestart {
+  color: #ffb347;
+}
+
 .status-ongoing {
   color: #45a452;
 }
+
+.status-preend {
+  color: #ff6b6b;
+}
+
 .status-finished {
-  color: #888888;
+  color: #ff3b30;
 }
 
 /* 倒计时颜色 */
@@ -480,6 +638,7 @@ const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 
   font-size: calc(var(--ui-scale, 1) * var(--material-font-scale, 1) * 1.3rem);
 }
 
+/* 数字加减控制器 */
 .number-control {
   display: flex;
   align-items: center;
@@ -495,6 +654,10 @@ const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 
 .number-control.controls-hidden {
   background: transparent;
   padding: calc(var(--ui-scale, 1) * 0.2rem) 0;
+}
+
+.number-control.disabled {
+  opacity: 0.5;
 }
 
 .num-btn {
@@ -515,11 +678,18 @@ const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 
   padding: 0;
 }
 
-.num-btn:hover {
+.num-btn:hover:not(.num-btn-disabled) {
   background: rgba(255, 255, 255, 0.22);
 }
-.num-btn:active {
+.num-btn:active:not(.num-btn-disabled) {
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* 暗灰色：不可点击或达到上限 */
+.num-btn-disabled {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  cursor: not-allowed;
 }
 
 .num-input {
@@ -541,5 +711,10 @@ const handleInputFocus = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 
 .num-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+.num-input-disabled {
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
 }
 </style>

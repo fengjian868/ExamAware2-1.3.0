@@ -76,6 +76,8 @@
       :extra-tools="toolbarTools"
       @exit="emit('exit')"
       @minimize="emit('minimize')"
+      @open-file="emit('openFile')"
+      @open-settings="emit('openSettings')"
       @scale-change="handleScaleChange"
       @density-change="handleDensityChange"
       @large-clock-toggle="handleLargeClockToggle"
@@ -256,6 +258,7 @@ interface Emits {
   (e: 'update:auxiliaryFontScale', scale: number): void;
   (e: 'exit'): void;
   (e: 'minimize'): void;
+  (e: 'openFile'): void;
   (e: 'scaleChange', scale: number): void;
   (e: 'largeClockToggle', enabled: boolean): void;
   (e: 'largeClockScaleChange', scale: number): void;
@@ -268,6 +271,7 @@ interface Emits {
   (e: 'preExamStart', exam: any, preMinutes: number): void;
   (e: 'examSwitch', fromExam: any, toExam: any): void;
   (e: 'error', error: string): void;
+  (e: 'openSettings'): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -822,6 +826,10 @@ watch(
     }
 
     if (lastExamKeyRef.value !== examKey) {
+      // 首次加载（lastExamKeyRef 为 null）且状态已为 completed 时，仍显示考试结束红色提醒
+      if (lastExamKeyRef.value === null && status === 'completed') {
+        showExamReminder('end', exam, { title: '考试已结束', themeBaseColor: '#ff3b30' });
+      }
       lastExamKeyRef.value = examKey;
       lastStatusRef.value = status;
       return;
@@ -1227,7 +1235,7 @@ const resolvedCards = computed(() => {
   height: 100vh;
   position: relative;
   overflow: hidden;
-  background: #02080d;
+  background: linear-gradient(135deg, #0a0e1a 0%, #0d1b2a 50%, #0a0e1a 100%);
   /* 提供本地默认变量，防止未继承导致的变量缺失 */
   --ui-scale: 1;
   --density-scale: 1;
@@ -1354,19 +1362,24 @@ const resolvedCards = computed(() => {
 /* 顶部标题栏 */
 .top-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: flex-start;
   flex-shrink: 0;
+  position: relative;
+  text-align: center;
 }
 
 .top-header .title-section {
   flex: 1;
   min-width: 0;
+  text-align: center;
 }
 
 .top-header .header-room {
+  position: absolute;
+  right: 2rem;
+  top: 1rem;
   flex-shrink: 0;
-  margin-left: calc(var(--ui-scale, 1) * 2rem);
 }
 
 /* 中间大时钟区域 */

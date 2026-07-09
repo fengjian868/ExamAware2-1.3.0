@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useHomeButtonsList } from '@renderer/composables/useHomeButtons'
 import type { HomeButtonMeta } from '@renderer/app/modules/homeButtons'
 import { useHomeButtons } from '@renderer/composables/useHomeButtons'
@@ -136,23 +136,6 @@ const nextPage = () => {
     currentPage.value++
   }
 }
-
-// 动态注册“日志”主页按钮（如果未存在）
-onMounted(() => {
-  const exists = list().some((b) => b.id === 'logs')
-  if (!exists) {
-    registry.register({
-      id: 'logs',
-      label: '日志',
-      icon: 'history',
-      theme: 'default',
-      order: 99,
-      action: async () => {
-        window.api?.ipc?.send('open-logs-window')
-      }
-    })
-  }
-})
 </script>
 
 <style scoped>

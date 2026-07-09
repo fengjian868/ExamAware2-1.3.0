@@ -16,7 +16,7 @@ export interface ClassicExamInfoItemProps {
   date: string;
   subject: string;
   time: string;
-  status: '已结束' | '进行中' | '未开始';
+  status: '已结束' | '进行中' | '未开始' | '即将开始' | '即将结束';
 }
 
 const props = defineProps<ClassicExamInfoItemProps>();
@@ -27,6 +27,10 @@ const statusClass = computed(() => {
       return 'status-finished';
     case '进行中':
       return 'status-ongoing';
+    case '即将开始':
+      return 'status-prestart';
+    case '即将结束':
+      return 'status-preend';
     case '未开始':
       return 'status-pending';
     default:
@@ -93,5 +97,13 @@ const statusClass = computed(() => {
 .status-pending {
   background: rgba(255, 152, 0, 0.2);
   color: #ff9800;
+}
+.status-prestart {
+  background: rgba(255, 152, 0, 0.3);
+  color: #ffb347;
+}
+.status-preend {
+  background: rgba(255, 59, 48, 0.2);
+  color: #ff6b6b;
 }
 </style>

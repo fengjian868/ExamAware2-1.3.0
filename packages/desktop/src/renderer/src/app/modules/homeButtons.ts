@@ -1,7 +1,6 @@
 import type { App } from 'vue'
 import type { AppModule } from '../types'
 import { DisposerGroup } from '@renderer/runtime/disposable'
-import { MessagePlugin } from 'tdesign-vue-next'
 
 export interface HomeButtonMeta {
   id: string
@@ -118,87 +117,14 @@ export const homeButtonsModule: AppModule = {
     })
 
     add({
-      id: 'url-player',
-      label: '从 URL 放映',
-      icon: 'link',
-      theme: 'default',
-      order: 3,
-      action: async () => {
-        const router = (app.config.globalProperties as any).$router
-        if (router) {
-          await router.push('/playerhome/url')
-        }
-      }
-    })
-
-    add({
-      id: 'control',
-      label: '集控',
-      icon: 'server',
-      hint: '敬请期待',
-      theme: 'default',
-      order: 4,
-      action: () => {
-        MessagePlugin.info('敬请期待')
-      }
-    })
-
-    // 添加更多按钮来展示分页效果
-    add({
       id: 'settings',
       label: '设置',
       icon: 'setting',
       theme: 'default',
-      order: 5,
+      order: 3,
       action: async () => {
         // 作为独立窗口（单例）弹出
         window.api?.ipc?.send('open-settings-window')
-      }
-    })
-
-    add({
-      id: 'plugin-store',
-      label: '插件商店',
-      icon: 'shop',
-      theme: 'primary',
-      order: 6,
-      action: () => {
-        window.api?.ipc?.send('open-plugin-store-window')
-      }
-    })
-
-    add({
-      id: 'help',
-      label: '帮助',
-      icon: 'help-circle',
-      theme: 'default',
-      order: 7,
-      action: () => {
-        console.log('帮助功能待实现')
-      }
-    })
-
-    add({
-      id: 'about',
-      label: '关于',
-      icon: 'info-circle',
-      theme: 'default',
-      order: 8,
-      action: () => {
-        window.api?.ipc?.send('open-settings-window', 'about')
-      }
-    })
-
-    // 添加更多示例按钮以测试滚动功能
-    add({
-      id: 'logs',
-      label: '日志',
-      icon: 'file-code',
-      theme: 'default',
-      order: 9,
-      action: () => {
-        // 打开/聚焦独立的日志窗口（单例）
-        window.api?.ipc?.send('open-logs-window')
       }
     })
     ;(app.config.globalProperties as any).$homeButtons = registry

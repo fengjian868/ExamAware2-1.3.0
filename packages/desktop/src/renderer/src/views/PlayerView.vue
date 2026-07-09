@@ -7,7 +7,7 @@
       :time-provider="timeProvider"
       :time-sync-status="timeSyncStatusText"
       v-model:roomNumber="roomNumber"
-      :allow-edit-room-number="true"
+      :allow-edit-room-number="false"
       :show-action-bar="true"
       :ui-scale="scaleSeed"
       :ui-density="uiDensitySetting"
@@ -22,6 +22,8 @@
       :classic-show-material="classicShowMaterial"
       @exit="handleExit"
       @minimize="handleMinimize"
+      @open-file="handleOpenFile"
+      @open-settings="handleOpenSettings"
       @room-number-click="handleRoomNumberClick"
       @room-number-change="handleRoomNumberChange"
       @scale-change="handleScaleChange"
@@ -64,6 +66,7 @@ import {
 } from '@renderer/composables/usePlaybackSettings'
 import { useDesktopApi, type UIDensity } from '@renderer/runtime/desktopApi'
 import { useSettingRef } from '@renderer/composables/useSetting'
+import { createPlayerLauncher } from '@renderer/services/playerLauncher'
 // 键盘相关逻辑已经内置在 ExamPlayer 中
 
 const ipcRenderer = window.api.ipc
@@ -222,6 +225,12 @@ const handleExamEnd = (exam: any) => {
     placement: 'bottom-right',
     closeBtn: true
   })
+  // 通知主进程检查是否为该时间段最后一场考试，若是则触发系统关机
+  try {
+    ipcRenderer?.invoke?.('exam:check-shutdown', configData.value ?? null, exam ?? null)
+  } catch (e) {
+    console.warn('发送考试结束关机检查失败:', e)
+  }
 }
 
 // 考试提醒事件
@@ -288,6 +297,27 @@ const handleMinimize = () => {
     window.electronAPI?.minimize()
   } catch (e) {
     console.warn('最小化窗口失败:', e)
+  }
+}
+
+// 打开设置窗口（作为独立窗口从播放器外部打开）
+const handleOpenSettings = () => {
+  window.api?.ipc?.send?.('open-settings-window')
+}
+
+// 打开文件：弹出文件选择对话框，选中后在新播放器窗口中打开
+const handleOpenFile = async () => {
+  try {
+    const launcher = createPlayerLauncher()
+    await launcher.selectLocalAndOpen()
+  } catch (e) {
+    console.warn('打开文件失败:', e)
+    NotifyPlugin.error({
+      title: '打开文件失败',
+      content: e instanceof Error ? e.message : '未知错误',
+      placement: 'bottom-right',
+      closeBtn: true
+    })
   }
 }
 

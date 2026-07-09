@@ -1,5 +1,6 @@
 <template>
   <div class="exam-room-number" @click="handleClick">
+    <span class="room-label">考场</span>
     <div class="room-number-display">{{ roomNumber }}</div>
   </div>
 </template>
@@ -40,6 +41,13 @@ const handleClick = () => {
 .exam-room-number:hover {
   border-color: #3a4556;
   background: #051015;
+}
+
+.room-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1rem;
+  margin-right: 0.5rem;
+  align-self: center;
 }
 
 .room-number-display {

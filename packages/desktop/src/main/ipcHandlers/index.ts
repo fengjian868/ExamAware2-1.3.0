@@ -40,6 +40,8 @@ import https from 'https'
 import { parseExamConfig, validateExamConfig } from '@dsz-examaware/core'
 import { startProcessKillerLoop, killNow, ensureProcessKillerConfigWatcher } from '../processKiller'
 import { getSystemAutoStart, setSystemAutoStart } from '../system/autoStart'
+import { checkAndShutdown } from '../examAutoShutdown'
+import type { ExamConfig, ExamInfo } from '@dsz-examaware/core'
 
 // minimal disposer group for main process
 function createDisposerGroup() {
@@ -751,6 +753,22 @@ export function registerIpcHandlers(ctx?: MainContext): () => void {
   if (ctx)
     ctx.ipc.handle('open-file-dialog', (_e, options?: OpenDialogOptions) => openFile(options))
   else group.add(handle('open-file-dialog', (_e, options?: OpenDialogOptions) => openFile(options)))
+
+  // ===== 考试结束后自动关机检查 =====
+  // 接收当前考试配置和刚结束的考试，若是该时间段（上午/下午/晚上）最后一场则触发系统关机
+  if (ctx) {
+    ctx.ipc.handle(
+      'exam:check-shutdown',
+      (_e, config: ExamConfig | null, endedExam: ExamInfo | null) =>
+        checkAndShutdown(config ?? null, endedExam ?? null)
+    )
+  } else {
+    group.add(
+      handle('exam:check-shutdown', (_e, config: ExamConfig | null, endedExam: ExamInfo | null) =>
+        checkAndShutdown(config ?? null, endedExam ?? null)
+      )
+    )
+  }
 
   // ===== classialand 课表进程拦截 =====
   if (ctx) {
