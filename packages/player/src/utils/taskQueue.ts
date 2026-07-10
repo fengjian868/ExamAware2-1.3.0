@@ -127,11 +127,13 @@ export class ExamTaskQueue {
         });
       }
 
-      // 始终创建考试结束任务，若已过期则立即执行
-      this.addTask(endTime, 'exam-end', exam, () => {
-        console.log(`考试结束: ${exam.name}`);
-        eventHandlers.onExamEnd?.(exam);
-      });
+      // 考试结束任务：只在考试尚未结束时创建，避免打开时对已结束考试弹窗
+      if (endTime > now) {
+        this.addTask(endTime, 'exam-end', exam, () => {
+          console.log(`考试结束: ${exam.name}`);
+          eventHandlers.onExamEnd?.(exam);
+        });
+      }
 
       // 考试提醒任务
       if (exam.alertTime && exam.alertTime > 0) {

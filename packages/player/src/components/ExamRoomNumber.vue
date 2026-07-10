@@ -45,10 +45,13 @@ const handleClick = () => {
 }
 
 .room-label {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 1rem;
-  margin-right: 0.5rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: calc(var(--ui-scale, 1) * 48px);
+  font-weight: 500;
+  margin-right: calc(var(--ui-scale, 1) * 0.5rem);
   align-self: center;
+  font-family: 'MiSans', sans-serif;
+  line-height: 1;
 }
 
 .room-number-display {
