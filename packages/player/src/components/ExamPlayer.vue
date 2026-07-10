@@ -826,10 +826,6 @@ watch(
     }
 
     if (lastExamKeyRef.value !== examKey) {
-      // 首次加载（lastExamKeyRef 为 null）且状态已为 completed 时，仍显示考试结束红色提醒
-      if (lastExamKeyRef.value === null && status === 'completed') {
-        showExamReminder('end', exam, { title: '考试已结束', themeBaseColor: '#ff3b30' });
-      }
       lastExamKeyRef.value = examKey;
       lastStatusRef.value = status;
       return;
@@ -997,8 +993,6 @@ onMounted(() => {
       reminder.showColorfulAlert({ title: '考试进行中', themeBaseColor: '#2ecc71' });
     } else if (status === 'pending') {
       // 不打扰：未开始不弹，或按需提示“未开始”
-    } else if (status === 'completed') {
-      reminder.showColorfulAlert({ title: '考试已结束', themeBaseColor: '#ff3b30' });
     }
   }, 0);
 });

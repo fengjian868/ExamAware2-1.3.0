@@ -172,7 +172,7 @@ const countdownState = computed(() => {
         label: '考试已全部结束',
         showValue: false,
         value: '',
-        text: '考试已结束',
+        text: '考试已全部结束',
         labelClass: 'text-danger',
         valueClass: ''
       };
@@ -250,7 +250,7 @@ const countdownState = computed(() => {
       label: '考试已全部结束',
       showValue: false,
       value: '',
-      text: '考试已结束',
+      text: '考试已全部结束',
       labelClass: 'text-danger',
       valueClass: ''
     };

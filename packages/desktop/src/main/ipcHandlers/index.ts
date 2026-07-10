@@ -26,6 +26,7 @@ import {
 } from '../configStore'
 import { applyTimeConfig } from '../ntpService/timeService'
 import { createSettingsWindow } from '../windows/settingsWindow'
+import { createPlayerSettingsWindow } from '../windows/playerSettingsWindow'
 import { createPluginStoreWindow } from '../windows/pluginStoreWindow'
 import { createMainWindow } from '../windows/mainWindow'
 import { windowManager } from '../windows/windowManager'
@@ -383,6 +384,28 @@ export function registerIpcHandlers(ctx?: MainContext): () => void {
     group.add(
       on('open-settings-window', (_e, page?: string) => {
         createSettingsWindow(page)
+      })
+    )
+
+  // 打开播放器设置窗口（独立窗口，比播放器更置顶）
+  if (ctx)
+    ctx.ipc.on('open-player-settings-window', async () => {
+      // 临时降低播放器置顶等级，让设置窗口可见
+      const playerWin = windowManager.get('player')
+      if (playerWin) {
+        playerWin.setAlwaysOnTop(false)
+      }
+      const settingsWin = await createPlayerSettingsWindow()
+      settingsWin.once('closed', () => {
+        if (playerWin && !playerWin.isDestroyed()) {
+          playerWin.setAlwaysOnTop(true, 'screen-saver')
+        }
+      })
+    })
+  else
+    group.add(
+      on('open-player-settings-window', () => {
+        createPlayerSettingsWindow()
       })
     )
 

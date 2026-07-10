@@ -302,7 +302,7 @@ const handleMinimize = () => {
 
 // 打开设置窗口（作为独立窗口从播放器外部打开）
 const handleOpenSettings = () => {
-  window.api?.ipc?.send?.('open-settings-window')
+  window.api?.ipc?.send?.('open-player-settings-window')
 }
 
 // 打开文件：弹出文件选择对话框，选中后在新播放器窗口中打开

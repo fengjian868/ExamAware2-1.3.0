@@ -113,13 +113,32 @@ const groupedExamInfos = computed<DayGroup[]>(() => {
 .days-grid {
   display: flex;
   flex-direction: row;
-  gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 1rem);
+  flex-wrap: nowrap;
+  gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.5rem);
   overflow-x: auto;
+}
+
+.days-grid::-webkit-scrollbar {
+  height: 4px;
+}
+
+.days-grid::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.days-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+.days-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .day-column {
   flex: 1 1 0;
-  min-width: calc(var(--ui-scale, 1) * 14rem);
+  min-width: calc(var(--ui-scale, 1) * 8rem);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -160,16 +179,16 @@ const groupedExamInfos = computed<DayGroup[]>(() => {
 .day-table-header {
   display: flex;
   align-items: center;
-  gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.4rem);
-  padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.3rem) 0;
+  gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.25rem);
+  padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.2rem) 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.3rem);
+  margin-bottom: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.2rem);
   flex-shrink: 0;
 }
 
 .day-header-cell {
   color: rgba(255, 255, 255, 0.55);
-  font-size: calc(var(--ui-scale, 1) * 1.05rem);
+  font-size: calc(var(--ui-scale, 1) * 0.95rem);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -180,7 +199,7 @@ const groupedExamInfos = computed<DayGroup[]>(() => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  max-height: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 18rem);
+  max-height: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 16rem);
 }
 
 .day-exam-list::-webkit-scrollbar {

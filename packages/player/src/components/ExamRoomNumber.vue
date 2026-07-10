@@ -31,6 +31,7 @@ const handleClick = () => {
   padding: calc(var(--ui-scale, 1) * 10px) calc(var(--ui-scale, 1) * 20px);
   cursor: pointer;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
@@ -57,6 +58,7 @@ const handleClick = () => {
   font-weight: 500;
   line-height: 1;
   text-align: center;
-  width: 100%;
+  flex: 0 1 auto;
+  white-space: nowrap;
 }
 </style>

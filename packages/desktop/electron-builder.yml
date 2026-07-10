@@ -22,8 +22,8 @@ fileAssociations:
     name: ExamAware 档案文件
     description: ExamAware 考试档案文件
     mimeType: application/json
-    role: Editor
-    icon: build/icon
+    role: Viewer
+    icon: build/ea2-icon
 asarUnpack:
   - resources/**
 win:

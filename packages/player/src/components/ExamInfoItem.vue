@@ -60,7 +60,7 @@ const statusClass = computed(() => {
 
 .cell {
   color: rgba(255, 255, 255, 0.9);
-  font-size: calc(var(--ui-scale, 1) * 1.2rem);
+  font-size: calc(var(--ui-scale, 1) * 1.05rem);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -69,7 +69,7 @@ const statusClass = computed(() => {
 
 .cell-period {
   color: rgba(255, 255, 255, 0.6);
-  font-size: calc(var(--ui-scale, 1) * 1.1rem);
+  font-size: calc(var(--ui-scale, 1) * 0.95rem);
 }
 
 .cell-subject {
