@@ -166,8 +166,17 @@ const countdownState = computed(() => {
 
   // 考试已结束
   if (status === 'completed') {
-    // 即使是最后一科结束，左下角也只显示"考试已结束"
-    // "考试已全部结束"不在此处显示
+    // 最后一科结束（没有下一场未结束的考试）→ 显示“考试已全部结束”
+    if (!hasNextExam.value || allExamsEnded.value) {
+      return {
+        label: '考试已全部结束',
+        showValue: false,
+        value: '',
+        text: '考试已全部结束',
+        labelClass: 'text-danger',
+        valueClass: ''
+      };
+    }
 
     // 检查下一场是否在考前倒计时窗口内
     const next = nextUpcomingExam.value;
@@ -188,7 +197,7 @@ const countdownState = computed(() => {
     }
 
     // 下一场还远（超过考前倒计时窗口）
-    // 如果是本次会话中考试刚结束 → 一直显示"考试已结束"（红色），直到考前倒计时开始
+    // 如果是本次会话中考试刚结束 → 一直显示“考试已结束”（红色），直到考前倒计时开始
     if (sawExamEndInSession.value || inExamEndGrace.value) {
       return {
         label: '考试已结束',
@@ -200,7 +209,7 @@ const countdownState = computed(() => {
       };
     }
 
-    // 如果是重新打开播放器且考试已结束 → 显示"考试未开始"（黄色）
+    // 如果是重新打开播放器且考试已结束 → 显示“考试未开始”（黄色）
     return {
       label: '考试未开始',
       showValue: false,

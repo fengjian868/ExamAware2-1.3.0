@@ -130,6 +130,10 @@ export class ExamPlayerCore {
       clearInterval(this.timeInterval);
       this.timeInterval = null;
     }
+    if (this.examSwitchTimer) {
+      clearTimeout(this.examSwitchTimer);
+      this.examSwitchTimer = null;
+    }
     if (this.timeProvider.offTimeChange) {
       this.timeProvider.offTimeChange(() => {
         this.currentTime.value = this.timeProvider.getCurrentTime();
@@ -168,7 +172,9 @@ export class ExamPlayerCore {
           },
           onExamEnd: (exam: ExamInfo) => {
             this.currentTime.value = this.timeProvider.getCurrentTime();
-            this.updateCurrentExam();
+            // 不立即切换到下一场：保持当前考试为 completed 状态，
+            // 让 UI 显示“考试已结束”并触发全屏结束特效。
+            this.scheduleExamSwitchAfterEnd();
             this.events.onExamEnd?.(exam);
             this.reminder?.showColorfulAlert({ title: '考试结束', themeBaseColor: '#ff3b30' });
           },
@@ -242,7 +248,9 @@ export class ExamPlayerCore {
         },
         onExamEnd: (exam: ExamInfo) => {
           this.currentTime.value = this.timeProvider.getCurrentTime();
-          this.updateCurrentExam();
+          // 不立即切换到下一场：保持当前考试为 completed 状态，
+          // 让 UI 显示“考试已结束”并触发全屏结束特效。
+          this.scheduleExamSwitchAfterEnd();
           this.events.onExamEnd?.(exam);
           this.reminder?.showColorfulAlert({ title: '考试结束', themeBaseColor: '#ff3b30' });
         },
@@ -284,6 +292,20 @@ export class ExamPlayerCore {
     if (oldIndex !== targetIndex) {
       this.onExamChangeCbs.forEach((cb) => cb(oldIndex, targetIndex));
     }
+  }
+
+  // 考试结束后延迟切换到下一场，保持当前考试为 completed 状态一段时间，
+  // 让 UI 能显示“考试已结束”并播放全屏结束特效。
+  private examSwitchTimer: ReturnType<typeof setTimeout> | null = null;
+  private scheduleExamSwitchAfterEnd() {
+    if (this.examSwitchTimer) {
+      clearTimeout(this.examSwitchTimer);
+      this.examSwitchTimer = null;
+    }
+    this.examSwitchTimer = setTimeout(() => {
+      this.examSwitchTimer = null;
+      this.updateCurrentExam();
+    }, 6000);
   }
 
   switchToExam(index: number): boolean {

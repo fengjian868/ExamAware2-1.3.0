@@ -259,7 +259,6 @@ const canEdit = computed(() => {
 // 考试状态文本
 const statusText = computed(() => {
   const status = ctx.examStatus?.value?.status;
-  if (status === 'completed' && allExamsEnded.value) return '考试已全部结束';
   if (status === 'completed') return '已结束';
   if (status === 'inProgress') {
     const timeRemaining = ctx.examStatus?.value?.timeRemaining;
