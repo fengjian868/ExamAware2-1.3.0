@@ -114,7 +114,7 @@
           <ChevronRightIcon v-if="isCollapsed" />
           <ChevronLeftIcon v-else />
         </div>
-        <div class="button-text">{{ manualCollapsed ? '展开' : '收起' }}</div>
+        <div class="button-text">{{ isCollapsed ? '展开' : '收起' }}</div>
       </button>
     </div>
   </div>
@@ -975,12 +975,12 @@ const formatScale = (value: number | string) => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
   gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.25rem);
   padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.5rem);
   position: relative;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 }
 
 .action-button.extra-tool {
@@ -1090,15 +1090,16 @@ const formatScale = (value: number | string) => {
 }
 
 .action-button-bar.collapsed .action-button {
-  width: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 3.2rem);
-  height: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 3.2rem);
+  width: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 4rem);
+  height: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 4rem);
   border-radius: 999px;
   padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.25rem);
   gap: 0;
+  transition: width 0.1s ease, height 0.1s ease, padding 0.1s ease, border-radius 0.1s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
 }
 
 .action-button-bar.collapsed .action-button.extra-tool {
-  min-width: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 3.2rem);
+  min-width: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 4rem);
 }
 
 .action-button-bar.collapsed .progress-border {

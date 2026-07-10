@@ -63,14 +63,41 @@
         <t-icon name="chevron-right" />
       </t-button>
     </div>
+
+    <!-- 考场号输入区 -->
+    <div class="room-number-bar" @click="openRoomKeyboard">
+      <span class="room-label">考场号</span>
+      <span class="room-value">{{ roomNumber }}</span>
+    </div>
+
+    <!-- 考场号键盘弹窗 -->
+    <t-dialog
+      header="设置考场号"
+      v-model:visible="showRoomKeyboard"
+      :footer="true"
+      @confirm="handleRoomConfirm"
+      @cancel="handleRoomCancel"
+      @esc-keydown="handleRoomCancel"
+      @close-btn-click="handleRoomCancel"
+      @close="handleRoomCancel"
+    >
+      <template #body>
+        <t-input v-model="tempRoomNumber" type="text" placeholder="请输入考场号" maxlength="10" />
+        <div class="keyboard-container">
+          <div ref="keyboardRef" class="virtual-keyboard"></div>
+        </div>
+      </template>
+    </t-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useHomeButtonsList } from '@renderer/composables/useHomeButtons'
 import type { HomeButtonMeta } from '@renderer/app/modules/homeButtons'
 import { useHomeButtons } from '@renderer/composables/useHomeButtons'
+import { Dialog as TDialog, Input as TInput } from 'tdesign-vue-next'
+import 'simple-keyboard/build/css/index.css'
 
 const registry = useHomeButtons()
 const { list } = useHomeButtonsList(registry)
@@ -136,6 +163,118 @@ const nextPage = () => {
     currentPage.value++
   }
 }
+
+/* ----------------- 考场号输入区与虚拟键盘 ----------------- */
+const ROOM_STORAGE_KEY = 'examaware:roomNumber'
+
+const loadRoomNumber = (): string => {
+  if (typeof window === 'undefined') return '01'
+  try {
+    const v = window.localStorage.getItem(ROOM_STORAGE_KEY)
+    return v && v.trim() ? v.trim() : '01'
+  } catch {
+    return '01'
+  }
+}
+
+const saveRoomNumber = (val: string) => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(ROOM_STORAGE_KEY, val)
+  } catch {}
+}
+
+const roomNumber = ref<string>(loadRoomNumber())
+const showRoomKeyboard = ref(false)
+const tempRoomNumber = ref<string>(roomNumber.value)
+const keyboardRef = ref<HTMLElement>()
+let keyboardInstance: any = null
+
+// 键盘按键处理
+const onKeyPress = (button: string) => {
+  if (button === '{clear}') {
+    tempRoomNumber.value = ''
+  } else if (button === '{bksp}') {
+    tempRoomNumber.value = tempRoomNumber.value.slice(0, -1)
+  } else {
+    // 限制只能输入数字和字母，最大长度10
+    if (/^[0-9a-zA-Z]$/.test(button) && tempRoomNumber.value.length < 10) {
+      tempRoomNumber.value += button
+    }
+  }
+}
+
+// 初始化虚拟键盘
+const initKeyboard = () => {
+  import('simple-keyboard')
+    .then(({ default: Keyboard }) => {
+      if (keyboardRef.value && !keyboardInstance) {
+        keyboardInstance = new Keyboard(keyboardRef.value, {
+          layout: {
+            default: ['1 2 3', '4 5 6', '7 8 9', '{clear} 0 {bksp}']
+          },
+          display: {
+            '{clear}': '清空',
+            '{bksp}': '⌫ 删除'
+          },
+          theme: 'hg-theme-default hg-layout-numeric numeric-keyboard-dark',
+          physicalKeyboardHighlight: false,
+          syncInstanceInputs: false,
+          mergeDisplay: true,
+          onKeyPress: (button: string) => onKeyPress(button)
+        })
+      }
+    })
+    .catch((error) => {
+      console.warn('Failed to load simple-keyboard:', error)
+    })
+}
+
+// 销毁虚拟键盘
+const destroyKeyboard = () => {
+  if (keyboardInstance) {
+    keyboardInstance.destroy()
+    keyboardInstance = null
+  }
+}
+
+// 打开考场号键盘弹窗
+const openRoomKeyboard = () => {
+  tempRoomNumber.value = roomNumber.value || '01'
+  showRoomKeyboard.value = true
+  // 延迟初始化键盘，确保 DOM 已渲染
+  setTimeout(() => {
+    initKeyboard()
+  }, 100)
+}
+
+// 确认考场号设置：同时写入 localStorage 与 settings
+const handleRoomConfirm = async () => {
+  const next = (tempRoomNumber.value || '').trim()
+  if (!next) {
+    return
+  }
+  roomNumber.value = next
+  saveRoomNumber(next)
+  try {
+    await window.api.config.set('player.defaultRoom', next)
+  } catch (error) {
+    console.error('Failed to save room number to settings:', error)
+  }
+  showRoomKeyboard.value = false
+  destroyKeyboard()
+}
+
+// 取消考场号设置
+const handleRoomCancel = () => {
+  showRoomKeyboard.value = false
+  tempRoomNumber.value = roomNumber.value || '01'
+  destroyKeyboard()
+}
+
+onUnmounted(() => {
+  destroyKeyboard()
+})
 </script>
 
 <style scoped>
@@ -236,5 +375,106 @@ const nextPage = () => {
 
 .nav-btn {
   pointer-events: auto;
+}
+
+/* 考场号输入条 */
+.room-number-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 240px;
+  padding: 10px 24px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--td-bg-color-page) 35%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--td-border-level-2-color) 50%, transparent);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.room-number-bar:hover {
+  background: color-mix(in srgb, var(--td-bg-color-page) 55%, transparent);
+  transform: translateX(-50%) translateY(-1px);
+}
+
+.room-label {
+  font-size: 16px;
+  color: var(--td-text-color-secondary);
+  letter-spacing: 1px;
+}
+
+.room-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* 键盘样式 */
+.keyboard-container {
+  margin-top: 16px;
+}
+
+.virtual-keyboard {
+  max-width: 340px;
+  margin: 0 auto;
+  background: transparent;
+}
+
+:deep(.numeric-keyboard-dark) {
+  background: #1a1a1a !important;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+:deep(.numeric-keyboard-dark .hg-button) {
+  background: #2d2d2d !important;
+  color: #ffffff !important;
+  border: 1px solid #404040 !important;
+  border-radius: 6px !important;
+  height: 50px !important;
+  margin: 3px !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+:deep(.numeric-keyboard-dark .hg-button:hover) {
+  background: #3d3d3d !important;
+  border-color: #505050 !important;
+  transform: translateY(-1px) !important;
+}
+
+:deep(.numeric-keyboard-dark .hg-button:active) {
+  background: #1d1d1d !important;
+  transform: translateY(0) !important;
+}
+
+:deep(.numeric-keyboard-dark .hg-button.hg-functionBtn) {
+  background: #0052d9 !important;
+  color: #ffffff !important;
+  border-color: #0052d9 !important;
+}
+
+:deep(.numeric-keyboard-dark .hg-button.hg-functionBtn:hover) {
+  background: #1668dc !important;
+  border-color: #1668dc !important;
+}
+
+:deep(.numeric-keyboard-dark .hg-row) {
+  display: flex !important;
+  justify-content: center !important;
 }
 </style>

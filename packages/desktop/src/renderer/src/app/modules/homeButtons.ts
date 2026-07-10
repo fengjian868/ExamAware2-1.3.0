@@ -117,23 +117,11 @@ export const homeButtonsModule: AppModule = {
     })
 
     add({
-      id: 'room-number',
-      label: '考场号',
-      icon: 'dashboard',
-      theme: 'primary',
-      order: 3,
-      action: async () => {
-        // 打开播放器设置窗口（包含考场号设置）
-        window.api?.ipc?.send('open-settings-window', 'player')
-      }
-    })
-
-    add({
       id: 'settings',
       label: '设置',
       icon: 'setting',
       theme: 'default',
-      order: 4,
+      order: 3,
       action: async () => {
         // 作为独立窗口（单例）弹出
         window.api?.ipc?.send('open-settings-window')
