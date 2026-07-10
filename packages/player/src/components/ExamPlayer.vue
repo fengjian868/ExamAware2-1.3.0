@@ -243,6 +243,8 @@ interface Props {
   }>;
   /** 经典主题下是否显示页数统计 */
   classicShowMaterial?: boolean;
+  /** 张数转页数比例（1张=几页） */
+  pagesPerSheet?: number;
   /** 播放器主题：enhanced（默认）或 classic（原版风格） */
   playerTheme?: 'classic' | 'enhanced';
 }
@@ -291,13 +293,19 @@ const props = withDefaults(defineProps<Props>(), {
   allowEditRoomNumber: true,
   eventHandlers: () => ({}),
   cards: () => ({}),
-  uiDensity: 'comfortable'
+  uiDensity: 'comfortable',
+  pagesPerSheet: 4
 });
 
 const emit = defineEmits<Emits>();
 const reminder = useReminderService();
 
 const reminderShown = new Set<string>();
+
+// 跟踪考试结束提醒的最后显示时间，用于延迟下一场的考前提醒
+// 避免考试结束特效被下一科考前提醒覆盖
+let lastExamEndShownAt = 0;
+const PRE_START_DELAY_AFTER_END = 6000; // 考试结束提醒显示5秒 + 1秒缓冲
 
 const getExamKey = (exam: any): string => {
   const raw = exam?.id ?? exam?.name;
@@ -312,6 +320,22 @@ const showColorfulOnce = (
   if (!key || reminderShown.has(key)) return;
   reminderShown.add(key);
   reminder.showColorfulAlert(options);
+};
+
+// 显示考前提醒：如果刚刚显示了考试结束提醒则延迟显示，避免覆盖
+const showPreStartAlert = (
+  exam: any,
+  options: { title: string; themeBaseColor: string; forceWhiteText?: boolean }
+) => {
+  const timeSinceEnd = Date.now() - lastExamEndShownAt;
+  if (timeSinceEnd < PRE_START_DELAY_AFTER_END) {
+    const delay = PRE_START_DELAY_AFTER_END - timeSinceEnd;
+    setTimeout(() => {
+      showExamReminder('preStart', exam, options);
+    }, delay);
+  } else {
+    showExamReminder('preStart', exam, options);
+  }
 };
 
 const showExamReminder = (
@@ -341,8 +365,8 @@ const mergedEventHandlers: PlayerEventHandlers = {
   onPreExamStart: (exam: any, preMinutes: number) => {
     props.eventHandlers?.onPreExamStart?.(exam, preMinutes);
     emit('preExamStart', exam, preMinutes);
-    // 即将开考（橙色）
-    showExamReminder('preStart', exam, {
+    // 即将开考（橙色）—— 延迟显示以避免覆盖考试结束特效
+    showPreStartAlert(exam, {
       title: `即将开考 · ${exam.name}`,
       themeBaseColor: '#ff9800',
       forceWhiteText: true
@@ -357,7 +381,8 @@ const mergedEventHandlers: PlayerEventHandlers = {
   onExamEnd: (exam: any) => {
     props.eventHandlers?.onExamEnd?.(exam);
     emit('examEnd', exam);
-    // 考试结束（红色）
+    // 考试结束（红色）—— 记录显示时间，用于延迟下一场的考前提醒
+    lastExamEndShownAt = Date.now();
     showExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
   },
   onExamAlert: (exam: any, alertTime: number) => {
@@ -803,7 +828,8 @@ watch(
       hasShownPreStartForExamId !== examId
     ) {
       hasShownPreStartForExamId = examId;
-      showExamReminder('preStart', currentExam.value, {
+      // 使用延迟显示以避免覆盖考试结束特效
+      showPreStartAlert(currentExam.value, {
         title: `即将开考 · ${currentExam.value.name}`,
         themeBaseColor: '#ff9800',
         forceWhiteText: true
@@ -834,6 +860,8 @@ watch(
     if (status === 'inProgress' && lastStatusRef.value !== 'inProgress') {
       showExamReminder('start', exam, { title: '考试开始', themeBaseColor: '#2ecc71' });
     } else if (status === 'completed' && lastStatusRef.value !== 'completed') {
+      // 记录考试结束提醒时间，用于延迟下一场的考前提醒
+      lastExamEndShownAt = Date.now();
       showExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
     }
 
@@ -1186,7 +1214,11 @@ const ctxForCards = {
   handleRoomNumberClick,
   currentExamIndex: computed(() => state.value.currentExamIndex),
   preCountdownMinutes: preCountdownMinutesState,
-  classicShowMaterial: computed(() => Boolean(props.classicShowMaterial))
+  classicShowMaterial: computed(() => Boolean(props.classicShowMaterial)),
+  pagesPerSheet: computed(() => {
+    const n = Number(props.pagesPerSheet);
+    return Number.isFinite(n) && n >= 1 ? n : 4;
+  })
 };
 provide('ExamPlayerCtx', ctxForCards);
 

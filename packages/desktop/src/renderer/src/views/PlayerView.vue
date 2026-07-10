@@ -20,6 +20,7 @@
       :hdr-highlight="hdrHighlightSetting"
       :player-theme="playerTheme"
       :classic-show-material="classicShowMaterial"
+      :pages-per-sheet="pagesPerSheet"
       @exit="handleExit"
       @minimize="handleMinimize"
       @open-file="handleOpenFile"
@@ -87,6 +88,7 @@ const {
 // 播放器主题
 const playerTheme = useSettingRef<'classic' | 'enhanced'>('appearance.playerTheme', 'enhanced')
 const classicShowMaterial = useSettingRef<boolean>('appearance.classicShowMaterial', false)
+const pagesPerSheet = useSettingRef<number>('player.pagesPerSheet', 4)
 
 const defaultRoomSetting = computed(() => {
   const raw = settingsStore.get<string>('player.defaultRoom', '01')

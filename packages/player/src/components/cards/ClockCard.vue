@@ -166,38 +166,29 @@ const countdownState = computed(() => {
 
   // 考试已结束
   if (status === 'completed') {
-    // 没有下一场：考试已全部结束
-    if (!hasNextExam.value || allExamsEnded.value) {
-      return {
-        label: '考试已全部结束',
-        showValue: false,
-        value: '',
-        text: '考试已全部结束',
-        labelClass: 'text-danger',
-        valueClass: ''
-      };
-    }
+    // 即使是最后一科结束，左下角也只显示"考试已结束"
+    // "考试已全部结束"不在此处显示
 
-    // 检查下一场是否在15分钟内
+    // 检查下一场是否在考前倒计时窗口内
     const next = nextUpcomingExam.value;
     if (next) {
       const nextStart = parseDateTime(next.start).getTime();
       const timeToNext = nextStart - Date.now();
       if (timeToNext <= PRE_COUNTDOWN_MS.value) {
-        // 下一场在15分钟内：开始倒计时
+        // 下一场在考前倒计时窗口内：开始倒计时
         return {
           label: '距离考试开始还剩',
           showValue: true,
           value: ctx.remainingTime?.value || '00:00',
           text: '',
           labelClass: '',
-          valueClass: 'countdown-value-warning'
+          valueClass: 'countdown-value-pre'
         };
       }
     }
 
-    // 下一场还远（超过15分钟）
-    // 如果是本次会话中考试刚结束 → 一直显示"考试已结束"（红色）
+    // 下一场还远（超过考前倒计时窗口）
+    // 如果是本次会话中考试刚结束 → 一直显示"考试已结束"（红色），直到考前倒计时开始
     if (sawExamEndInSession.value || inExamEndGrace.value) {
       return {
         label: '考试已结束',
@@ -222,7 +213,7 @@ const countdownState = computed(() => {
 
   // 考试未开始
   if (status === 'pending') {
-    // 考前 15 分钟内才显示倒计时
+    // 考前倒计时窗口内才显示倒计时
     if (typeof timeRemaining === 'number' && timeRemaining <= PRE_COUNTDOWN_MS.value) {
       return {
         label: '距离考试开始还剩',
@@ -230,10 +221,10 @@ const countdownState = computed(() => {
         value: ctx.remainingTime?.value || '00:00',
         text: '',
         labelClass: '',
-        valueClass: 'countdown-value-warning'
+        valueClass: 'countdown-value-pre'
       };
     }
-    // 还没到 15 分钟，显示黄色「考试未开始」
+    // 还没到考前倒计时窗口，显示黄色「考试未开始」
     return {
       label: '考试未开始',
       showValue: false,
@@ -247,10 +238,10 @@ const countdownState = computed(() => {
   // 默认
   if (allExamsEnded.value) {
     return {
-      label: '考试已全部结束',
+      label: '考试已结束',
       showValue: false,
       value: '',
-      text: '考试已全部结束',
+      text: '考试已结束',
       labelClass: 'text-danger',
       valueClass: ''
     };
@@ -381,6 +372,10 @@ const countdownValueClass = computed(() => (countdownState.value as any).valueCl
 
 .countdown-value-warning {
   color: #f1c40f !important;
+}
+
+.countdown-value-pre {
+  color: #ff9800 !important;
 }
 
 .countdown-value-danger {

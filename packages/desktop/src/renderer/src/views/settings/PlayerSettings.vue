@@ -135,7 +135,9 @@
           </div>
           <div class="settings-item-main">
             <div class="settings-item-title">大时钟字号缩放</div>
-            <div class="settings-item-desc">调整大时钟模式下时钟数字的字号倍率，范围 50%-200%。</div>
+            <div class="settings-item-desc">
+              调整大时钟模式下时钟数字的字号倍率，范围 50%-200%。
+            </div>
             <div class="settings-item-extra">
               <t-slider
                 v-model="largeClockScale"
@@ -181,7 +183,9 @@
           </div>
           <div class="settings-item-main">
             <div class="settings-item-title">试卷材料字号缩放</div>
-            <div class="settings-item-desc">调整试卷/答题卡页数张数区域的字号倍率，范围 80%-200%。</div>
+            <div class="settings-item-desc">
+              调整试卷/答题卡页数张数区域的字号倍率，范围 80%-200%。
+            </div>
             <div class="settings-item-extra">
               <t-slider
                 v-model="materialFontScale"
@@ -212,7 +216,9 @@
           </div>
           <div class="settings-item-main">
             <div class="settings-item-title">辅助字号缩放</div>
-            <div class="settings-item-desc">调整时钟旁提示文字等辅助信息的字号倍率，范围 80%-200%。</div>
+            <div class="settings-item-desc">
+              调整时钟旁提示文字等辅助信息的字号倍率，范围 80%-200%。
+            </div>
             <div class="settings-item-extra">
               <t-slider
                 v-model="auxiliaryFontScale"
@@ -253,6 +259,23 @@
               :step="1"
               suffix="分钟"
             />
+          </div>
+        </div>
+
+        <t-divider />
+
+        <div class="settings-item">
+          <div class="settings-item-icon">
+            <TIcon name="file-paste" size="22px" />
+          </div>
+          <div class="settings-item-main">
+            <div class="settings-item-title">张数转页数比例</div>
+            <div class="settings-item-desc">
+              输入张数时自动换算页数，例如设置为 2 则 1 张 = 2 页。
+            </div>
+          </div>
+          <div class="settings-item-action" style="width: 140px">
+            <t-input-number v-model="pagesPerSheet" :min="1" :max="10" :step="1" suffix="页/张" />
           </div>
         </div>
       </t-card>
@@ -371,6 +394,15 @@ const auxiliaryFontScale = settings.ref<number>('auxiliaryFontScale', 1.3, {
 // 倒计时与提醒
 const preCountdownMinutes = settings.ref<number>('preCountdownMinutes', 15, {
   mapIn: (value) => Number(value) || 15,
+  mapOut: (value) => value
+})
+
+// 张数转页数比例
+const pagesPerSheet = settings.ref<number>('pagesPerSheet', 4, {
+  mapIn: (value) => {
+    const n = Number(value)
+    return Number.isFinite(n) && n >= 1 && n <= 10 ? Math.floor(n) : 4
+  },
   mapOut: (value) => value
 })
 

@@ -194,6 +194,7 @@ export interface ExamPlayerCtx {
   examInfoLargeFont?: { value: boolean };
   materialFontScale?: { value: number };
   classicShowMaterial?: { value: boolean };
+  pagesPerSheet?: { value: number };
 }
 
 const ctx = inject<ExamPlayerCtx>('ExamPlayerCtx')!;
@@ -202,7 +203,10 @@ const showMaterial = computed(() => Boolean(ctx.classicShowMaterial?.value));
 
 const MAX_PAGES = 20;
 const MAX_SHEETS = 10;
-const PAGES_PER_SHEET = 4;
+const pagesPerSheet = computed(() => {
+  const n = Number(ctx.pagesPerSheet?.value);
+  return Number.isFinite(n) && n >= 1 ? n : 4;
+});
 
 const customClass = computed(() =>
   ['exam-info-card', ctx.examInfoLargeFont?.value ? 'exam-info-large' : '']
@@ -426,23 +430,47 @@ watch(
   { immediate: true }
 );
 
-// 张数联动页数：1张=4页
+// 额外监听值变化：确保考试进行中值>0时一定调度隐藏（修复加减号不自动消失）
+watch(
+  [paperPages, paperSheets, answerPages, answerSheets, () => ctx.examStatus?.value?.status],
+  () => {
+    const status = ctx.examStatus?.value?.status;
+    if (status !== 'inProgress') return;
+    (['paperPages', 'paperSheets', 'answerPages', 'answerSheets'] as const).forEach((field) => {
+      const val =
+        field === 'paperPages'
+          ? paperPages.value
+          : field === 'paperSheets'
+            ? paperSheets.value
+            : field === 'answerPages'
+              ? answerPages.value
+              : answerSheets.value;
+      // 值>0且控件可见且没有等待中的定时器时，调度隐藏
+      if (val > 0 && showControls.value[field] && !hideTimers[field]) {
+        scheduleHide(field);
+      }
+    });
+  }
+);
+
+// 张数联动页数：1张=pagesPerSheet页
 const syncPagesFromSheets = (
   sheetsField: 'paperSheets' | 'answerSheets',
   pagesField: 'paperPages' | 'answerPages'
 ) => {
   const sheets = sheetsField === 'paperSheets' ? paperSheets.value : answerSheets.value;
-  const newPages = sheets * PAGES_PER_SHEET;
+  const ratio = pagesPerSheet.value;
+  const newPages = sheets * ratio;
   if (newPages <= MAX_PAGES) {
     if (pagesField === 'paperPages') paperPages.value = newPages;
     else answerPages.value = newPages;
   } else {
     // 超过上限则截断张数
-    const maxSheets = Math.floor(MAX_PAGES / PAGES_PER_SHEET);
+    const maxSheets = Math.floor(MAX_PAGES / ratio);
     if (sheetsField === 'paperSheets') paperSheets.value = maxSheets;
     else answerSheets.value = maxSheets;
-    if (pagesField === 'paperPages') paperPages.value = maxSheets * PAGES_PER_SHEET;
-    else answerPages.value = maxSheets * PAGES_PER_SHEET;
+    if (pagesField === 'paperPages') paperPages.value = maxSheets * ratio;
+    else answerPages.value = maxSheets * ratio;
   }
 };
 

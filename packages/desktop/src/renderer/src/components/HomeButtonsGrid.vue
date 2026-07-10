@@ -420,11 +420,11 @@ onUnmounted(() => {
 
 /* 键盘样式 */
 .keyboard-container {
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .virtual-keyboard {
-  max-width: 340px;
+  max-width: 260px;
   margin: 0 auto;
   background: transparent;
 }
@@ -432,7 +432,7 @@ onUnmounted(() => {
 :deep(.numeric-keyboard-dark) {
   background: #1a1a1a !important;
   border-radius: 8px;
-  padding: 10px;
+  padding: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -441,9 +441,9 @@ onUnmounted(() => {
   color: #ffffff !important;
   border: 1px solid #404040 !important;
   border-radius: 6px !important;
-  height: 50px !important;
-  margin: 3px !important;
-  font-size: 18px !important;
+  height: 36px !important;
+  margin: 2px !important;
+  font-size: 15px !important;
   font-weight: 500 !important;
   transition: all 0.2s ease !important;
   display: flex !important;
