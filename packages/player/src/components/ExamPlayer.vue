@@ -840,6 +840,8 @@ watch(
 
 const lastStatusRef = ref<string | null>(null);
 const lastExamKeyRef = ref<string | null>(null);
+// 独立标志：防止考试结束全屏特效重复显示（不依赖 reminderShown 去重）
+const examEndAlertShownFor = ref<string | null>(null);
 
 watch(
   () => [currentExam.value, examStatus.value?.status] as const,
@@ -854,14 +856,20 @@ watch(
     if (lastExamKeyRef.value !== examKey) {
       lastExamKeyRef.value = examKey;
       lastStatusRef.value = status;
+      // 考试切换时重置结束标志，允许新考试结束时再次显示
+      examEndAlertShownFor.value = null;
       return;
     }
 
     if (status === 'inProgress' && lastStatusRef.value !== 'inProgress') {
       showExamReminder('start', exam, { title: '考试开始', themeBaseColor: '#2ecc71' });
     } else if (status === 'completed' && lastStatusRef.value !== 'completed') {
-      // 记录考试结束提醒时间，用于延迟下一场的考前提醒
+      // 考试结束：直接显示全屏特效（绕过 showColorfulOnce 去重，用独立标志防重复）
       lastExamEndShownAt = Date.now();
+      if (examEndAlertShownFor.value !== examKey) {
+        examEndAlertShownFor.value = examKey;
+        reminder.showColorfulAlert({ title: '考试结束', themeBaseColor: '#ff3b30' });
+      }
       showExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
     }
 

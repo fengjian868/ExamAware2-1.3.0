@@ -48,7 +48,17 @@ export class ExamPlayerCore {
     // 定期推进 currentTime
     watch(this.currentTime, () => {
       if (this.examConfig.value?.examInfos && this.state.value.loaded) {
-        if (this.currentTime.value % 30000 < 1000) this.updateCurrentExam();
+        if (this.currentTime.value % 30000 < 1000) {
+          // 考试刚结束的宽限期内不自动切换，保持 completed 状态让 UI 显示结束特效
+          const current = this.currentExam.value;
+          if (current?.end) {
+            const endMs = this.configSvc.parse(current.end).getTime();
+            if (this.currentTime.value >= endMs && this.currentTime.value - endMs < 6000) {
+              return;
+            }
+          }
+          this.updateCurrentExam();
+        }
       }
     });
 
