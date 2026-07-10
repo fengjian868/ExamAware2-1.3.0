@@ -611,39 +611,63 @@ export function registerIpcHandlers(ctx?: MainContext): () => void {
       })
     )
 
-  if (ctx)
-    ctx.ipc.handle('select-file', async () => {
-      const result = await dialog.showOpenDialog({
-        properties: ['openFile'],
-        filters: [
-          { name: 'ExamAware 档案文件', extensions: ['ea2'] },
-          { name: 'JSON 文件', extensions: ['json'] },
-          { name: '所有文件', extensions: ['*'] }
-        ]
-      })
+  // 打开文件选择对话框，并将其作为子窗口挂载到调用方所在窗口（如播放器窗口）。
+  // 由于播放器窗口在非开发环境下为 always-on-top / 全屏 / kiosk，原生对话框默认会
+  // 被其遮挡，因此这里在弹出对话框前临时关闭 always-on-top，对话框关闭后再恢复。
+  const openFileAttached = async (
+    event: Electron.IpcMainInvokeEvent,
+    options?: OpenDialogOptions
+  ) => {
+    const baseOptions: OpenDialogOptions = {
+      properties: ['openFile'],
+      filters: [
+        { name: 'ExamAware 档案文件', extensions: ['ea2'] },
+        { name: 'JSON 文件', extensions: ['json'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    }
+    const merged: OpenDialogOptions = {
+      ...baseOptions,
+      ...options,
+      properties: options?.properties ?? baseOptions.properties,
+      filters: options?.filters ?? baseOptions.filters
+    }
+
+    const parentWindow = BrowserWindow.fromWebContents(event.sender)
+    let wasAlwaysOnTop = false
+    if (parentWindow) {
+      try {
+        wasAlwaysOnTop = parentWindow.isAlwaysOnTop()
+        if (wasAlwaysOnTop) {
+          parentWindow.setAlwaysOnTop(false)
+        }
+      } catch {
+        wasAlwaysOnTop = false
+      }
+    }
+
+    try {
+      const result = parentWindow
+        ? await dialog.showOpenDialog(parentWindow, merged)
+        : await dialog.showOpenDialog(merged)
       if (result.canceled) {
         return null
-      } else {
-        return result.filePaths[0]
       }
-    })
+      return result.filePaths[0]
+    } finally {
+      if (parentWindow && wasAlwaysOnTop) {
+        try {
+          parentWindow.setAlwaysOnTop(true, 'screen-saver')
+        } catch {}
+      }
+    }
+  }
+
+  if (ctx)
+    ctx.ipc.handle('select-file', (event: Electron.IpcMainInvokeEvent) => openFileAttached(event))
   else
     group.add(
-      handle('select-file', async () => {
-        const result = await dialog.showOpenDialog({
-          properties: ['openFile'],
-          filters: [
-            { name: 'ExamAware 档案文件', extensions: ['ea2'] },
-            { name: 'JSON 文件', extensions: ['json'] },
-            { name: '所有文件', extensions: ['*'] }
-          ]
-        })
-        if (result.canceled) {
-          return null
-        } else {
-          return result.filePaths[0]
-        }
-      })
+      handle('select-file', (event: Electron.IpcMainInvokeEvent) => openFileAttached(event))
     )
 
   if (ctx)
