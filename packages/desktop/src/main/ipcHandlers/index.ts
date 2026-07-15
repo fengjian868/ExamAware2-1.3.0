@@ -28,6 +28,7 @@ import {
 import { applyTimeConfig } from '../ntpService/timeService'
 import { createSettingsWindow } from '../windows/settingsWindow'
 import { createPlayerSettingsWindow } from '../windows/playerSettingsWindow'
+import { createControlWindow } from '../windows/controlWindow'
 import { createPluginStoreWindow } from '../windows/pluginStoreWindow'
 import { createMainWindow } from '../windows/mainWindow'
 import { windowManager } from '../windows/windowManager'
@@ -421,6 +422,18 @@ export function registerIpcHandlers(ctx?: MainContext): () => void {
     group.add(
       on('open-settings-window', (_e, page?: string) => {
         createSettingsWindow(page)
+      })
+    )
+
+  // 打开集控面板窗口（独立窗口）
+  if (ctx)
+    ctx.ipc.on('open-control-window', () => {
+      createControlWindow()
+    })
+  else
+    group.add(
+      on('open-control-window', () => {
+        createControlWindow()
       })
     )
 

@@ -3,6 +3,7 @@ dist
 out
 .DS_Store
 *.log*
+.pnpm-store
 packages/core/tsconfig.tsbuildinfo
 packages/desktop/plugins/*
 

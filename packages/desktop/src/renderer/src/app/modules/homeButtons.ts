@@ -127,6 +127,18 @@ export const homeButtonsModule: AppModule = {
         window.api?.ipc?.send('open-settings-window')
       }
     })
+
+    add({
+      id: 'control',
+      label: '集控',
+      icon: 'control-platform',
+      theme: 'primary',
+      order: 4,
+      action: () => {
+        // 打开集控面板窗口（深链 examaware://control）
+        window.api?.ipc?.send('open-control-window')
+      }
+    })
     ;(app.config.globalProperties as any).$homeButtons = registry
     ctx.provides.homeButtons = registry
     if (ctx.provide) ctx.provide('homeButtons', registry)
