@@ -169,6 +169,7 @@ import { providePlayerToolbar } from '../composables/usePlayerToolbar';
 // 本地引入 TDesign 组件，确保不依赖宿主全局注册
 import { Dialog as TDialog, Input as TInput, Button as TButton } from 'tdesign-vue-next';
 import { useReminderService, ReminderUtils } from '../utils/reminderService';
+import { ReminderEventGate, type ReminderEventKind } from '../core/reminderEventGate';
 
 // 轻量 Markdown 渲染器：使用浏览器原生实现，避免引入重依赖
 // 支持少量常见标记：# 标题、**加粗**、*斜体*、`行内代码`、换行
@@ -274,6 +275,10 @@ interface Emits {
   (e: 'examSwitch', fromExam: any, toExam: any): void;
   (e: 'error', error: string): void;
   (e: 'openSettings'): void;
+  (
+    e: 'colorfulAlert',
+    payload: { kind: 'start' | 'alert' | 'end'; title: string; exam: any }
+  ): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -299,6 +304,21 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>();
 const reminder = useReminderService();
+
+// 考试提醒事件去重门控（用于铃声触发）
+const reminderEventGate = new ReminderEventGate();
+
+// 展示考试提醒：彩色全屏 + emit colorfulAlert（供播放器外部播放铃声）
+const presentExamReminder = (
+  kind: ReminderEventKind,
+  exam: any,
+  options: { title: string; themeBaseColor: string; forceWhiteText?: boolean }
+): boolean => {
+  if (!reminderEventGate.accept(kind, exam)) return false;
+  reminder.showColorfulAlert(options);
+  emit('colorfulAlert', { kind, title: options.title, exam });
+  return true;
+};
 
 const reminderShown = new Set<string>();
 
@@ -375,21 +395,21 @@ const mergedEventHandlers: PlayerEventHandlers = {
   onExamStart: (exam: any) => {
     props.eventHandlers?.onExamStart?.(exam);
     emit('examStart', exam);
-    // 考试开始（绿色）
-    showExamReminder('start', exam, { title: '考试开始', themeBaseColor: '#2ecc71' });
+    // 考试开始（绿色）—— 触发全屏提醒 + 铃声
+    presentExamReminder('start', exam, { title: '考试开始', themeBaseColor: '#2ecc71' });
   },
   onExamEnd: (exam: any) => {
     props.eventHandlers?.onExamEnd?.(exam);
     emit('examEnd', exam);
-    // 考试结束（红色）—— 记录显示时间，用于延迟下一场的考前提醒
+    // 考试结束（红色）—— 记录显示时间，触发全屏提醒 + 铃声
     lastExamEndShownAt = Date.now();
-    showExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
+    presentExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
   },
   onExamAlert: (exam: any, alertTime: number) => {
     props.eventHandlers?.onExamAlert?.(exam, alertTime);
     emit('examAlert', exam, alertTime);
-    // 考试即将结束（红色）
-    showExamReminder('alert', exam, {
+    // 考试即将结束（红色）—— 触发全屏提醒 + 铃声
+    presentExamReminder('alert', exam, {
       title: '考试即将结束',
       themeBaseColor: '#ff3b30',
       forceWhiteText: true
@@ -511,6 +531,7 @@ watch(
   (newConfig) => {
     console.log('ExamPlayer: 配置变化', newConfig);
     resetReminderShown();
+    reminderEventGate.reset();
     examPlayer.updateConfig(newConfig);
   },
   { immediate: false, deep: true }
@@ -862,15 +883,11 @@ watch(
     }
 
     if (status === 'inProgress' && lastStatusRef.value !== 'inProgress') {
-      showExamReminder('start', exam, { title: '考试开始', themeBaseColor: '#2ecc71' });
+      presentExamReminder('start', exam, { title: '考试开始', themeBaseColor: '#2ecc71' });
     } else if (status === 'completed' && lastStatusRef.value !== 'completed') {
-      // 考试结束：直接显示全屏特效（绕过 showColorfulOnce 去重，用独立标志防重复）
+      // 考试结束：触发全屏特效 + 铃声（presentExamReminder 内部有去重）
       lastExamEndShownAt = Date.now();
-      if (examEndAlertShownFor.value !== examKey) {
-        examEndAlertShownFor.value = examKey;
-        reminder.showColorfulAlert({ title: '考试结束', themeBaseColor: '#ff3b30' });
-      }
-      showExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
+      presentExamReminder('end', exam, { title: '考试结束', themeBaseColor: '#ff3b30' });
     }
 
     lastStatusRef.value = status;

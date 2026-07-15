@@ -4,6 +4,7 @@ import {
   BrowserWindow,
   app,
   nativeTheme,
+  protocol,
   type MessageBoxOptions,
   type WebContents,
   type OpenDialogOptions
@@ -43,6 +44,11 @@ import { startProcessKillerLoop, killNow, ensureProcessKillerConfigWatcher } fro
 import { getSystemAutoStart, setSystemAutoStart } from '../system/autoStart'
 import { checkAndShutdown } from '../examAutoShutdown'
 import type { ExamConfig, ExamInfo } from '@dsz-examaware/core'
+import { ReminderSoundPackStore } from '../reminderSoundPackStore'
+import {
+  createReminderSoundProtocolHandler,
+  registerReminderSoundPackIpc
+} from '../reminderSoundPackIpc'
 
 // minimal disposer group for main process
 function createDisposerGroup() {
@@ -83,6 +89,31 @@ function handle(channel: string, listener: Parameters<typeof ipcMain.handle>[1])
 
 export function registerIpcHandlers(ctx?: MainContext): () => void {
   const group = createDisposerGroup()
+
+  // ===== 提醒铃声包：IPC + 自定义协议 =====
+  const reminderSoundPackStore = new ReminderSoundPackStore(
+    path.join(app.getPath('userData'), 'reminder-sound-packs')
+  )
+  registerReminderSoundPackIpc({
+    handle: (channel, listener) => {
+      if (ctx) ctx.ipc.handle(channel, listener)
+      else group.add(handle(channel, listener))
+    },
+    showOpenDialog: (options) => dialog.showOpenDialog(options),
+    store: reminderSoundPackStore
+  })
+  const reminderSoundProtocolHandler = createReminderSoundProtocolHandler(reminderSoundPackStore)
+  if (ctx) {
+    ctx.protocol.register('examaware-sound', reminderSoundProtocolHandler)
+  } else {
+    protocol.registerFileProtocol('examaware-sound', reminderSoundProtocolHandler)
+    group.add(() => {
+      try {
+        protocol.unregisterProtocol('examaware-sound')
+      } catch {}
+    })
+  }
+
   const disposeIpcDecorators = applyIpcControllers(
     [new LoggingIpcController(), new HttpApiController(), new CastController()],
     ctx

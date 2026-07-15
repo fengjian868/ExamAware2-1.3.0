@@ -59,6 +59,16 @@ protocol.registerSchemesAsPrivileged([
       supportFetchAPI: false,
       corsEnabled: true
     }
+  },
+  {
+    scheme: 'examaware-sound',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
   }
 ])
 
