@@ -121,17 +121,50 @@ export class ExamPlayerCore {
     )
   );
 
+  // 记录已触发结束提醒的考试，防止重复
+  private endedExamNotified = new Set<string>();
+
   start() {
     if (this.timeInterval) return;
     this.timeInterval = setInterval(() => {
+      const prevTime = this.currentTime.value;
       this.currentTime.value = this.timeProvider.getCurrentTime();
+      // 每秒检测考试结束：当前考试从进行中变为结束的瞬间触发 onExamEnd
+      this.detectExamEnd(prevTime);
     }, 1000);
     this.queue.start();
     if (this.timeProvider.onTimeChange) {
       this.timeProvider.onTimeChange(() => {
+        const prevTime = this.currentTime.value;
         this.currentTime.value = this.timeProvider.getCurrentTime();
+        this.detectExamEnd(prevTime);
         this.queue.updateTimeProvider(this.timeProvider.getCurrentTime);
       });
+    }
+  }
+
+  // 检测当前考试是否刚刚结束（currentTime 跨过 endTime），触发 onExamEnd
+  private detectExamEnd(prevTime: number) {
+    const exam = this.currentExam.value;
+    if (!exam?.end) return;
+    let endMs: number;
+    try {
+      endMs = this.configSvc.parse(exam.end).getTime();
+    } catch {
+      return;
+    }
+    const now = this.currentTime.value;
+    // prevTime < endMs <= now 表示刚刚跨过结束时间
+    if (prevTime < endMs && now >= endMs) {
+      const examKey = exam.id ?? exam.name ?? '';
+      const key = String(examKey);
+      if (key && !this.endedExamNotified.has(key)) {
+        this.endedExamNotified.add(key);
+        // 不立即切换，保持 completed 状态让 UI 显示结束特效
+        this.scheduleExamSwitchAfterEnd();
+        this.events.onExamEnd?.(exam);
+        this.reminder?.showColorfulAlert({ title: '考试结束', themeBaseColor: '#ff3b30' });
+      }
     }
   }
 
@@ -237,6 +270,7 @@ export class ExamPlayerCore {
     this.examConfig.value = newConfig;
     this.state.value.error = null;
     this.state.value.loaded = true;
+    this.endedExamNotified.clear();
     this.updateCurrentExam();
 
     this.queue.createTasksForConfig(
