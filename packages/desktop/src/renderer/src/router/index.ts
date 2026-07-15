@@ -12,6 +12,7 @@ import TrayPopover from '@renderer/views/tray/TrayPopover.vue'
 import SettingsShell from '@renderer/views/SettingsShell.vue'
 import CastWindow from '@renderer/views/CastWindow.vue'
 import PluginStoreWindow from '@renderer/views/PluginStoreWindow.vue'
+import ControlPanel from '@renderer/views/ControlPanel.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -43,6 +44,13 @@ const router = createRouter({
       path: '/cast',
       name: 'cast',
       component: CastWindow
+    },
+    // 集控面板独立窗口路由（由主进程以 #/control 打开）
+    {
+      path: '/control',
+      name: 'control',
+      component: ControlPanel,
+      meta: { hideTitlebar: true }
     },
     // 独立日志窗口可直接使用 #/logs 打开
     { path: '/logs', name: 'logs', component: LogsView },

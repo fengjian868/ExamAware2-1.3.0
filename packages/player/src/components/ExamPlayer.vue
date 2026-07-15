@@ -279,6 +279,17 @@ interface Emits {
     e: 'colorfulAlert',
     payload: { kind: 'start' | 'alert' | 'end'; title: string; exam: any }
   ): void;
+  (
+    e: 'statusUpdate',
+    status: {
+      playing: boolean;
+      examName: string;
+      examStatus: 'pending' | 'inProgress' | 'completed';
+      currentExam: string;
+      roomNumber: string;
+      configLoaded: boolean;
+    }
+  ): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -777,6 +788,89 @@ const renderedMarkdown = computed(() =>
 );
 const handleCloseNotice = () => reminder.closeCurrentNotice('manual');
 
+// === 集控：状态快照与命令执行 ===
+// 供宿主（desktop PlayerView）桥接 player:control / player:status-report IPC。
+// player 包本身不依赖 electron IPC，只暴露纯方法。
+
+const getStatusSnapshot = () => ({
+  playing: Boolean(playerExamConfig.value?.examInfos?.length),
+  examName: playerExamConfig.value?.examName || '',
+  examStatus: (examStatus.value?.status ?? 'pending') as 'pending' | 'inProgress' | 'completed',
+  currentExam: currentExam.value?.name || '',
+  roomNumber: effectiveRoomNumber.value || '',
+  configLoaded: Boolean(state.value?.loaded)
+});
+
+// 状态变化时通知宿主上报
+watch(
+  () => [
+    examStatus.value?.status,
+    currentExam.value?.name,
+    effectiveRoomNumber.value,
+    state.value?.loaded
+  ],
+  () => {
+    emit('statusUpdate', getStatusSnapshot());
+  },
+  { deep: true }
+);
+
+// 执行单条集控命令（switch/end/alert/setRoom/exit），返回回执
+const executeControl = async (
+  kind: 'switch' | 'end' | 'alert' | 'setRoom' | 'exit',
+  data: any
+): Promise<{ ok: boolean; error?: string }> => {
+  try {
+    if (kind === 'switch') {
+      const dir = data?.direction;
+      const cur = state.value?.currentExamIndex ?? 0;
+      const list = sortedExamInfos.value || [];
+      const target = dir === 'prev' ? Math.max(0, cur - 1) : Math.min(list.length - 1, cur + 1);
+      const ok = switchToExam(target);
+      return ok ? { ok: true } : { ok: false, error: '无法切换' };
+    }
+    if (kind === 'end') {
+      const exam = currentExam.value;
+      if (exam) {
+        reminder.showColorfulAlert({ title: '考试结束', themeBaseColor: '#ff3b30' });
+      }
+      const cur = state.value?.currentExamIndex ?? 0;
+      const list = sortedExamInfos.value || [];
+      if (cur < list.length - 1) switchToExam(cur + 1);
+      return { ok: true };
+    }
+    if (kind === 'alert') {
+      const title = typeof data?.title === 'string' ? data.title : '提醒';
+      const color = typeof data?.color === 'string' ? data.color : '#ff9800';
+      reminder.showColorfulAlert({ title, themeBaseColor: color, forceWhiteText: true });
+      return { ok: true };
+    }
+    if (kind === 'setRoom') {
+      const room = typeof data?.room === 'string' ? data.room.trim() : '';
+      if (!room) return { ok: false, error: '考场号不能为空' };
+      localRoomNumber.value = room;
+      saveStoredRoomNumber(room);
+      emit('update:roomNumber', room);
+      emit('roomNumberChange', room);
+      return { ok: true };
+    }
+    if (kind === 'exit') {
+      emit('exit');
+      return { ok: true };
+    }
+    return { ok: false, error: `未知命令: ${kind}` };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : '执行异常' };
+  }
+};
+
+// 紧急广播：叠一层全屏 markdown 通知（不切场、不清页数）
+const showBroadcastNotice = (payload: { title: string; body: string; color?: string }) => {
+  const md = `# ${payload.title}\n\n${payload.body}`;
+  reminder.notify(md, { timeoutMs: 0 });
+  return { ok: true };
+};
+
 // 可插拔卡片：注册与上下文将在依赖项声明后注入（见下文）
 
 // 将 API 暴露给父组件，便于外部触发
@@ -791,6 +885,10 @@ defineExpose({
   notify: reminder.notify,
   closeCurrentNotice: reminder.closeCurrentNotice,
   clearAllNotices: reminder.clearAllNotices,
+  // 集控：状态快照、命令执行、广播
+  getStatusSnapshot,
+  executeControl,
+  showBroadcastNotice,
   toolbar: {
     register: toolbarRegistry.register,
     unregister: toolbarRegistry.unregister,

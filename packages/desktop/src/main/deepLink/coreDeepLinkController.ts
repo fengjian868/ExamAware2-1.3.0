@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron'
 import { createEditorWindow } from '../windows/editorWindow'
 import { createPlayerWindow } from '../windows/playerWindow'
 import { createSettingsWindow } from '../windows/settingsWindow'
+import { createControlWindow } from '../windows/controlWindow'
 import { appLogger } from '../logging/winstonLogger'
 
 export interface DeepLinkControllerDeps {
@@ -83,6 +84,18 @@ export class CoreDeepLinkController {
       return true
     } catch (error) {
       appLogger.error('[deeplink] open player failed', error as Error)
+      return false
+    }
+  }
+
+  @DeepLink('core:control')
+  openControl(payload: DeepLinkPayload) {
+    if (payload.host !== 'control') return false
+    try {
+      createControlWindow()
+      return true
+    } catch (error) {
+      appLogger.error('[deeplink] open control failed', error as Error)
       return false
     }
   }

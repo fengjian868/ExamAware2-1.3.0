@@ -41,6 +41,8 @@
       @colorful-alert="handleColorfulAlert"
       @exam-switch="handleExamSwitch"
       @error="handleError"
+      @status-update="handleStatusUpdate"
+      ref="examPlayerRef"
     >
       <!-- 额外内容插槽保留为空，由 ExamPlayer 内部处理考场号设置 -->
       <template #extra></template>
@@ -328,6 +330,54 @@ const handleColorfulAlert = (payload: { kind: ReminderSoundKind }) => {
     .catch(() => undefined)
 }
 
+// === 集控：IPC 桥接（player:control / player:overlay-notice / player:status-report）===
+const examPlayerRef = ref<any>(null)
+
+// 状态上报：ExamPlayer 状态变化 → 主进程 → 广播给控制端
+const handleStatusUpdate = (status: any) => {
+  try {
+    ipcRenderer?.send?.('player:status-report', { ...status, now: Date.now() })
+  } catch (e) {
+    console.warn('上报状态失败:', e)
+  }
+}
+
+// 控制命令：主进程转发 → 调 ExamPlayer 暴露的 executeControl → 回 player:control-result
+const handleControlCommand = async (
+  _event: unknown,
+  payload: { id?: string; kind: string; data?: any }
+) => {
+  if (!payload?.id || !payload?.kind) return
+  const player = examPlayerRef.value
+  if (!player?.executeControl) {
+    sendControlResult(payload.id, { ok: false, error: '播放器未就绪' })
+    return
+  }
+  try {
+    const result = await player.executeControl(payload.kind, payload.data)
+    sendControlResult(payload.id, result)
+  } catch (e) {
+    sendControlResult(payload.id, { ok: false, error: e instanceof Error ? e.message : '执行异常' })
+  }
+}
+
+// 广播通知：主进程 → ExamPlayer 叠全屏 markdown 通知
+const handleOverlayNotice = (
+  _event: unknown,
+  payload: { title: string; body: string; color?: string }
+) => {
+  const player = examPlayerRef.value
+  player?.showBroadcastNotice?.(payload)
+}
+
+const sendControlResult = (id: string, result: { ok: boolean; error?: string }) => {
+  try {
+    ipcRenderer?.send?.('player:control-result', { id, ...result })
+  } catch (e) {
+    console.warn('回执发送失败:', e)
+  }
+}
+
 // 考试切换事件
 const handleExamSwitch = (fromExam: any, toExam: any) => {
   console.log('考试切换:', fromExam, '->', toExam)
@@ -417,6 +467,10 @@ onMounted(async () => {
 
   console.log('IPC renderer available, setting up listeners...')
 
+  // 集控：订阅主进程下发的控制命令与广播通知
+  ipcRenderer?.on?.('player:control', handleControlCommand)
+  ipcRenderer?.on?.('player:overlay-notice', handleOverlayNotice)
+
   // 执行时间同步
   try {
     await timeProvider.performSync()
@@ -473,6 +527,14 @@ onMounted(async () => {
 
 onUnmounted(() => {
   console.log('PlayerViewNew 卸载')
+
+  // 集控：移除 IPC 监听
+  try {
+    ipcRenderer?.off?.('player:control', handleControlCommand)
+    ipcRenderer?.off?.('player:overlay-notice', handleOverlayNotice)
+  } catch (e) {
+    console.warn('移除集控监听失败:', e)
+  }
 
   // 清理资源
   reminderSoundController.dispose()

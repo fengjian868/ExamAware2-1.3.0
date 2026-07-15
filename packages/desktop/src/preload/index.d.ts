@@ -110,6 +110,14 @@ declare global {
         peerConfig: (peerId: string, shareId?: string) => Promise<string | null>
         send: (peerId: string, config: string) => Promise<any>
       }
+      control: {
+        listDevices: () => Promise<any[]>
+        refreshDiscovery: () => Promise<void>
+        sendCommand: (peerIds: string[], command: any) => Promise<any>
+        pushConfigFile: (peerIds: string[], config: string) => Promise<any>
+        onDevices: (listener: (devices: any[]) => void) => () => void
+        onCommandResult: (listener: (payload: any) => void) => () => void
+      }
       logging: {
         getConfig: () => Promise<any>
         setConfig: (cfg: any) => Promise<any>

@@ -137,6 +137,24 @@ const api = {
       ipcRenderer.invoke('cast:peer-config', { peerId, shareId }),
     send: (peerId: string, config: string) => ipcRenderer.invoke('cast:send', { peerId, config })
   },
+  control: {
+    listDevices: () => ipcRenderer.invoke('control:list-devices'),
+    refreshDiscovery: () => ipcRenderer.invoke('control:refresh-discovery'),
+    sendCommand: (peerIds: string[], command: any) =>
+      ipcRenderer.invoke('control:send-command', { peerIds, command }),
+    pushConfigFile: (peerIds: string[], config: string) =>
+      ipcRenderer.invoke('control:push-config', { peerIds, config }),
+    onDevices: (listener: (devices: any[]) => void) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, devices: any[]) => listener(devices)
+      ipcRenderer.on('control:devices', wrapped)
+      return () => ipcRenderer.off('control:devices', wrapped)
+    },
+    onCommandResult: (listener: (payload: any) => void) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: any) => listener(payload)
+      ipcRenderer.on('control:command-result', wrapped)
+      return () => ipcRenderer.off('control:command-result', wrapped)
+    }
+  },
   logging: {
     getConfig: () => ipcRenderer.invoke('logging:get-config'),
     setConfig: (cfg: any) => ipcRenderer.invoke('logging:set-config', cfg),

@@ -36,6 +36,7 @@ import { applyIpcControllers } from '../ipc/decorators'
 import { LoggingIpcController } from '../ipc/loggingController'
 import { HttpApiController } from '../ipc/httpApiController'
 import { CastController } from '../ipc/castController'
+import { ControlController } from '../ipc/controlController'
 import { getSharedConfig, setSharedConfig } from '../state/sharedConfigStore'
 import axios from 'axios'
 import https from 'https'
@@ -115,7 +116,12 @@ export function registerIpcHandlers(ctx?: MainContext): () => void {
   }
 
   const disposeIpcDecorators = applyIpcControllers(
-    [new LoggingIpcController(), new HttpApiController(), new CastController()],
+    [
+      new LoggingIpcController(),
+      new HttpApiController(),
+      new CastController(),
+      new ControlController()
+    ],
     ctx
   )
   group.add(disposeIpcDecorators)

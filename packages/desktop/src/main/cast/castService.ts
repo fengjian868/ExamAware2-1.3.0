@@ -5,7 +5,7 @@ import os from 'os'
 import path from 'path'
 import * as fs from 'fs'
 import { randomUUID } from 'crypto'
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import { Bonjour } from 'bonjour-service'
 import type { Service, Browser } from 'bonjour-service'
 import { findAvailablePort } from '../http/utils'
@@ -19,6 +19,9 @@ import {
 } from '../state/sharedConfigStore'
 import { createPlayerWindow } from '../windows/playerWindow'
 import { appLogger } from '../logging/winstonLogger'
+import { ControlServer } from '../control/controlServer'
+import { ControlCommandExecutor } from '../control/controlCommandExecutor'
+import type { DeviceStatus } from '../control/controlProtocol'
 
 type RouterInstance = InstanceType<typeof Router>
 
@@ -61,6 +64,11 @@ export class CastService {
   private published: Service | null = null
   private browser: Browser | null = null
   private peers = new Map<string, CastPeer>()
+  private controlExecutor = new ControlCommandExecutor()
+  private controlServer = new ControlServer(this.controlExecutor)
+  private statusReportHandler:
+    | ((event: Electron.IpcMainEvent, status: DeviceStatus) => void)
+    | null = null
 
   private getLocalAddressSet() {
     const set = new Set<string>()
@@ -164,7 +172,9 @@ export class CastService {
       host: `${os.hostname?.() || 'examaware'}.local`,
       txt: {
         v: app.getVersion?.() || 'dev',
-        share: this.config.shareEnabled ? '1' : '0'
+        share: this.config.shareEnabled ? '1' : '0',
+        control: '1',
+        ctrlVer: '1'
       }
     })
     // Some environments require explicit start()
@@ -386,6 +396,18 @@ export class CastService {
     this.server = this.app.listen(port, '0.0.0.0', () => {
       appLogger.info(`[cast] service listening on http://0.0.0.0:${port}`)
     })
+
+    // 挂载集控 WS 服务端到同一 HTTP server
+    this.controlServer.attach(this.server)
+
+    // 监听 player 渲染层上报的状态，更新快照并广播给控制端
+    if (!this.statusReportHandler) {
+      this.statusReportHandler = (_event, status: DeviceStatus) => {
+        this.controlExecutor.setStatus(status)
+        this.controlServer.broadcastStatus({ ...status, now: Date.now() })
+      }
+      ipcMain.on('player:status-report', this.statusReportHandler)
+    }
   }
 
   async stop() {
@@ -393,6 +415,11 @@ export class CastService {
     this.published = null
     this.browser?.stop()
     this.browser = null
+    if (this.statusReportHandler) {
+      ipcMain.off('player:status-report', this.statusReportHandler)
+      this.statusReportHandler = null
+    }
+    this.controlServer.dispose()
     if (this.server) {
       await new Promise<void>((resolve) => this.server?.close(() => resolve()))
     }
