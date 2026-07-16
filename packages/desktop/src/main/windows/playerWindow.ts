@@ -80,10 +80,13 @@ export function createPlayerWindow(configPath: string, forceRecreate = false): B
           // 通知主进程存储配置数据
           setSharedConfig(data)
 
-          setTimeout(() => {
-            playerWindow.webContents.send('load-config', data)
-            appLogger.debug('Config file loaded and sent to renderer (len=%d)', data?.length ?? 0)
+          const loadTimer = setTimeout(() => {
+            if (!playerWindow.isDestroyed()) {
+              playerWindow.webContents.send('load-config', data)
+              appLogger.debug('Config file loaded and sent to renderer (len=%d)', data?.length ?? 0)
+            }
           }, 1000)
+          loadTimer.unref?.()
         })
 
         // 返回清理函数供 WindowManager 调用

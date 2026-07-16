@@ -29,8 +29,11 @@ function getManager(): ControlClientManager {
 
 function broadcastToControlWindow(channel: string, payload: unknown) {
   const win = windowManager.get('control')
-  if (win && !win.isDestroyed()) {
+  if (!win || win.isDestroyed()) return
+  try {
     win.webContents.send(channel, payload)
+  } catch (err) {
+    appLogger.warn('[control-controller] 向集控窗口发送消息失败', err as Error)
   }
 }
 
@@ -65,14 +68,21 @@ export class ControlController {
       throw new Error('peerIds and command are required')
     }
     const results: Array<{ peerId: string; result: any }> = []
+    const sender = e.sender
     await getManager().sendCommandBatchStream(payload.peerIds, payload.command, (progress) => {
       results.push(progress)
       // 流式推送进度给控制面板窗口
-      e.sender.send('control:batch-progress', {
-        ...progress,
-        total: payload.peerIds.length,
-        done: results.length
-      })
+      try {
+        if (!sender.isDestroyed()) {
+          sender.send('control:batch-progress', {
+            ...progress,
+            total: payload.peerIds.length,
+            done: results.length
+          })
+        }
+      } catch (err) {
+        appLogger.warn('[control-controller] 向发送进程回推进度失败', err as Error)
+      }
     })
     return results
   }
@@ -87,13 +97,20 @@ export class ControlController {
       data: { config: payload.config, autoPlay: true }
     }
     const results: Array<{ peerId: string; result: any }> = []
+    const sender = e.sender
     await getManager().sendCommandBatchStream(payload.peerIds, command, (progress) => {
       results.push(progress)
-      e.sender.send('control:batch-progress', {
-        ...progress,
-        total: payload.peerIds.length,
-        done: results.length
-      })
+      try {
+        if (!sender.isDestroyed()) {
+          sender.send('control:batch-progress', {
+            ...progress,
+            total: payload.peerIds.length,
+            done: results.length
+          })
+        }
+      } catch (err) {
+        appLogger.warn('[control-controller] 向发送进程回推进度失败', err as Error)
+      }
     })
     return results
   }

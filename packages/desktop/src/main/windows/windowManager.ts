@@ -140,6 +140,7 @@ export class WindowManager {
         showWindow()
       }
     }, 5000)
+    showFallbackTimer.unref?.()
 
     // default: open external links in system browser
     if (externalOpenHandler) {

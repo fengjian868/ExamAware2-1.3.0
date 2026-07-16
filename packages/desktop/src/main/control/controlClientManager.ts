@@ -260,7 +260,7 @@ export class ControlClientManager {
           clearTimeout(pending.timer)
           conn.pending.delete(frame.id)
           pending.resolve(result)
-          this.callbacks.onCommandResult(conn.peerId, frame.id, result)
+          this.emitCommandResult(conn.peerId, frame.id, result)
         }
       }
     }
@@ -278,7 +278,7 @@ export class ControlClientManager {
     for (const [id, pending] of conn.pending) {
       clearTimeout(pending.timer)
       pending.resolve({ ok: false, error: '设备已断开' })
-      this.callbacks.onCommandResult(conn.peerId, id, { ok: false, error: '设备已断开' })
+      this.emitCommandResult(conn.peerId, id, { ok: false, error: '设备已断开' })
     }
     conn.pending.clear()
     this.emitDevices()
@@ -319,7 +319,7 @@ export class ControlClientManager {
         conn.pending.delete(id)
         const result = { ok: false, error: '响应超时' }
         resolve(result)
-        this.callbacks.onCommandResult(peerId, id, result)
+        this.emitCommandResult(peerId, id, result)
       }, timeoutMs)
       conn.pending.set(id, { id, kind: command.kind, resolve, timer })
       try {
@@ -329,7 +329,7 @@ export class ControlClientManager {
         conn.pending.delete(id)
         const result = { ok: false, error: '发送失败' }
         resolve(result)
-        this.callbacks.onCommandResult(peerId, id, result)
+        this.emitCommandResult(peerId, id, result)
       }
     })
   }
@@ -379,7 +379,19 @@ export class ControlClientManager {
   }
 
   private emitDevices() {
-    this.callbacks.onDevices(this.getDevices())
+    try {
+      this.callbacks.onDevices(this.getDevices())
+    } catch (err) {
+      appLogger.warn('[control-client] onDevices 回调异常', err as Error)
+    }
+  }
+
+  private emitCommandResult(peerId: string, id: string, result: { ok: boolean; error?: string }) {
+    try {
+      this.callbacks.onCommandResult(peerId, id, result)
+    } catch (err) {
+      appLogger.warn('[control-client] onCommandResult 回调异常', err as Error)
+    }
   }
 
   private disposeConnection(conn: DeviceConnection) {
