@@ -1,7 +1,7 @@
 <template>
   <div class="control-panel">
     <!-- 顶栏 -->
-    <header class="cp-header">
+    <header class="cp-header" :class="`cp-header--${platform}`">
       <div class="cp-title">集控面板</div>
       <div class="cp-header-actions">
         <t-button variant="outline" size="small" :loading="refreshing" @click="refresh">
@@ -206,6 +206,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { NotifyPlugin, MessagePlugin } from 'tdesign-vue-next'
+import { useWindowControls } from '@renderer/composables/useWindowControls'
+
+const { platform } = useWindowControls()
 
 interface DeviceStatus {
   playing: boolean
@@ -456,6 +459,8 @@ void ipc
   padding: 12px 20px;
   border-bottom: 1px solid var(--td-border-level-1-color);
   flex-shrink: 0;
+  /* 整个标题栏可拖动窗口 */
+  -webkit-app-region: drag;
 }
 .cp-title {
   font-size: 18px;
@@ -465,6 +470,20 @@ void ipc
   display: flex;
   align-items: center;
   gap: 16px;
+  /* 交互区域不可拖动，否则按钮点不动 */
+  -webkit-app-region: no-drag;
+}
+/* 确保所有交互子元素均可点击 */
+.cp-header-actions :deep(*) {
+  -webkit-app-region: no-drag;
+}
+/* Windows 原生最小化/最大化/关闭按钮区域预留空间，避免与右侧操作按钮重叠 */
+.cp-header--win32 {
+  padding-right: 150px;
+}
+/* macOS 交通灯按钮在左侧，预留空间避免遮挡标题 */
+.cp-header--darwin {
+  padding-left: 80px;
 }
 .cp-count {
   font-size: 13px;
