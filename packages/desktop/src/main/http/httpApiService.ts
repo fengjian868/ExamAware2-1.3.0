@@ -559,14 +559,16 @@ export class HttpApiService {
     server.on('upgrade', this.upgradeHandler)
 
     this.wsServer.on('connection', (ws, req) => {
-      ws.send(
-        JSON.stringify({
-          type: 'welcome',
-          ts: getCurrentTimeMs(),
-          path: req.url || '',
-          apiBase: this.getApiBaseUrl()
-        })
-      )
+      try {
+        ws.send(
+          JSON.stringify({
+            type: 'welcome',
+            ts: getCurrentTimeMs(),
+            path: req.url || '',
+            apiBase: this.getApiBaseUrl()
+          })
+        )
+      } catch {}
 
       ws.on('message', (data) => {
         try {

@@ -94,7 +94,9 @@ export function createMainWindow(): BrowserWindow {
           e.preventDefault()
           log('event: close intercepted -> request renderer confirmation')
           if (!win.isDestroyed()) {
-            win.webContents.send('editor:request-close')
+            try {
+              win.webContents.send('editor:request-close')
+            } catch {}
           }
           return
         }

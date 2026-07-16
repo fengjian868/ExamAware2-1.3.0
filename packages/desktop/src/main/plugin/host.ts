@@ -558,6 +558,7 @@ export class PluginHost extends EventEmitter {
     for (const name of Array.from(this.records.keys())) {
       await this.unloadPlugin(name)
     }
+    this.disposeIpc()
   }
 
   async fetchPluginSource(payload?: PluginSourceFetchRequest) {
@@ -570,6 +571,30 @@ export class PluginHost extends EventEmitter {
    */
   setupIpcChannels(channelPrefix = 'plugin') {
     this.channelPrefix = channelPrefix
+    const channels = [
+      'list',
+      'toggle',
+      'reload',
+      'uninstall',
+      'services',
+      'service',
+      'get-config',
+      'set-config',
+      'patch-config',
+      'renderer-entry',
+      'readme',
+      'fetch-source',
+      'install-registry',
+      'registry-readme',
+      'install-package',
+      'install-dir'
+    ]
+    // 防止重复注册（重启场景）
+    for (const ch of channels) {
+      try {
+        ipcMain.removeHandler(`${channelPrefix}:${ch}`)
+      } catch {}
+    }
     ipcMain.handle(`${channelPrefix}:list`, async () => this.list())
     ipcMain.handle(`${channelPrefix}:toggle`, async (_e, name: string, enabled: boolean) => {
       await this.setEnabled(name, enabled)
@@ -639,6 +664,35 @@ export class PluginHost extends EventEmitter {
       await this.loadAll()
       return { installedPath: target, list: this.list() }
     })
+  }
+
+  /** 移除所有插件相关 ipcMain handler */
+  disposeIpc() {
+    const channelPrefix = this.channelPrefix
+    if (!channelPrefix) return
+    const channels = [
+      'list',
+      'toggle',
+      'reload',
+      'uninstall',
+      'services',
+      'service',
+      'get-config',
+      'set-config',
+      'patch-config',
+      'renderer-entry',
+      'readme',
+      'fetch-source',
+      'install-registry',
+      'registry-readme',
+      'install-package',
+      'install-dir'
+    ]
+    for (const ch of channels) {
+      try {
+        ipcMain.removeHandler(`${channelPrefix}:${ch}`)
+      } catch {}
+    }
   }
 
   private getUserPluginsDir() {
@@ -765,7 +819,8 @@ export class PluginHost extends EventEmitter {
     if (!this.channelPrefix) return
     for (const window of BrowserWindow.getAllWindows()) {
       try {
-        window.webContents.send(`${this.channelPrefix}:config`, { name, config })
+        if (!window.isDestroyed())
+          window.webContents.send(`${this.channelPrefix}:config`, { name, config })
       } catch (error) {
         this.logger.warn('[PluginHost] config broadcast failed', error)
       }
@@ -880,7 +935,8 @@ export class PluginHost extends EventEmitter {
     if (!this.channelPrefix) return
     for (const window of BrowserWindow.getAllWindows()) {
       try {
-        window.webContents.send(`${this.channelPrefix}:registry-progress`, progress)
+        if (!window.isDestroyed())
+          window.webContents.send(`${this.channelPrefix}:registry-progress`, progress)
       } catch (error) {
         this.logger.warn('[PluginHost] registry progress broadcast failed', error)
       }
@@ -895,7 +951,7 @@ export class PluginHost extends EventEmitter {
     }
     for (const window of BrowserWindow.getAllWindows()) {
       try {
-        window.webContents.send(`${this.channelPrefix}:state`, payload)
+        if (!window.isDestroyed()) window.webContents.send(`${this.channelPrefix}:state`, payload)
       } catch (error) {
         this.logger.warn('[PluginHost] broadcast failed', error)
       }
@@ -938,11 +994,15 @@ export class PluginHost extends EventEmitter {
     const rpcClient = new JsonRpcClient({
       send: (message) => {
         const target = BrowserWindow.getAllWindows()[0]
-        if (!target) {
-          logger.warn('rpc send skipped: no renderer window')
+        if (!target || target.isDestroyed()) {
+          logger.warn('rpc send skipped: no available renderer window')
           return
         }
-        target.webContents.send(rpcChannel, message)
+        try {
+          target.webContents.send(rpcChannel, message)
+        } catch (err) {
+          logger.warn('rpc send failed', err)
+        }
       },
       onMessage: (handler) => {
         const listener = (_event: Electron.IpcMainEvent, payload: string) => handler(payload)
@@ -955,7 +1015,13 @@ export class PluginHost extends EventEmitter {
     const rpcServer = new JsonRpcServer({
       onMessage: (handler) => {
         const listener = (event: Electron.IpcMainEvent, payload: string) =>
-          handler(payload, (response) => event.sender.send(rpcChannel, response))
+          handler(payload, (response) => {
+            try {
+              if (!event.sender.isDestroyed()) event.sender.send(rpcChannel, response)
+            } catch (err) {
+              logger.warn('rpc response send failed', err)
+            }
+          })
         ipcMain.on(rpcChannel, listener)
         const disposer = () => ipcMain.off(rpcChannel, listener)
         record.group.add(disposer)
@@ -1006,7 +1072,7 @@ export class PluginHost extends EventEmitter {
         broadcast: (channel: string, payload?: any) => {
           BrowserWindow.getAllWindows().forEach((w) => {
             try {
-              w.webContents.send(channel, payload)
+              if (!w.isDestroyed()) w.webContents.send(channel, payload)
             } catch (error) {
               logger.warn('broadcast failed', channel, error)
             }
@@ -1023,7 +1089,7 @@ export class PluginHost extends EventEmitter {
         invokeRenderer: (channel: string, payload?: any) => {
           BrowserWindow.getAllWindows().forEach((w) => {
             try {
-              w.webContents.send(channel, payload)
+              if (!w.isDestroyed()) w.webContents.send(channel, payload)
             } catch (error) {
               logger.warn('invokeRenderer broadcast failed', channel, error)
             }

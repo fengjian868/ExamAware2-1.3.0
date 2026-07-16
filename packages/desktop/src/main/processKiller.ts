@@ -177,10 +177,11 @@ export async function killNow(): Promise<{ found: boolean; killed: boolean }> {
 
 // 配置变更时自动重启/停止循环，使开关和进程名修改即时生效
 let configWatcherInitialized = false
+let configUnsubscribe: (() => void) | null = null
 export function ensureProcessKillerConfigWatcher() {
   if (configWatcherInitialized) return
   configWatcherInitialized = true
-  onConfigChanged((cfg) => {
+  configUnsubscribe = onConfigChanged((cfg) => {
     const current = cfg?.behavior?.classialandKiller
     const enabled = Boolean(current?.enabled ?? true)
     if (!enabled) {
@@ -190,4 +191,16 @@ export function ensureProcessKillerConfigWatcher() {
     // 启用时重新启动循环，确保进程名/间隔等配置生效
     startProcessKillerLoop()
   })
+}
+
+/** 卸载进程杀手：停止循环 + 取消 configWatcher 订阅 */
+export function disposeProcessKiller() {
+  stopProcessKillerLoop()
+  if (configUnsubscribe) {
+    try {
+      configUnsubscribe()
+    } catch {}
+    configUnsubscribe = null
+  }
+  configWatcherInitialized = false
 }

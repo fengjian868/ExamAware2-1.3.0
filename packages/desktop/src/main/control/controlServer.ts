@@ -31,8 +31,8 @@ const SERVER_PING_INTERVAL_MS = 5000
 export class ControlServer {
   private wss: WebSocketServer | null = null
   private clients = new Set<WebSocket>()
-  private heartbeatTimers = new WeakMap<WebSocket, NodeJS.Timeout>()
-  private pingTimers = new WeakMap<WebSocket, NodeJS.Timeout>()
+  private heartbeatTimers = new Map<WebSocket, NodeJS.Timeout>()
+  private pingTimers = new Map<WebSocket, NodeJS.Timeout>()
   private executor: ControlCommandExecutor
 
   constructor(executor: ControlCommandExecutor) {
@@ -83,6 +83,7 @@ export class ControlServer {
           ws.terminate()
         } catch {}
       }, HEARTBEAT_TIMEOUT_MS)
+      timer.unref?.()
       this.heartbeatTimers.set(ws, timer)
     }
     // ws pong 作为存活信号（服务端主动 ping 时客户端自动回 pong）
@@ -95,6 +96,7 @@ export class ControlServer {
         }
       } catch {}
     }, SERVER_PING_INTERVAL_MS)
+    pingTimer.unref?.()
     this.pingTimers.set(ws, pingTimer)
     reset()
   }
@@ -103,6 +105,7 @@ export class ControlServer {
     this.clients.delete(ws)
     const timer = this.heartbeatTimers.get(ws)
     if (timer) clearTimeout(timer)
+    this.heartbeatTimers.delete(ws)
     const pingTimer = this.pingTimers.get(ws)
     if (pingTimer) clearInterval(pingTimer)
     this.pingTimers.delete(ws)
@@ -120,6 +123,7 @@ export class ControlServer {
           ws.terminate()
         } catch {}
       }, HEARTBEAT_TIMEOUT_MS)
+      timer.unref?.()
       this.heartbeatTimers.set(ws, timer)
     }
     const frame = decodeFrame(raw as string | Buffer)
@@ -188,8 +192,18 @@ export class ControlServer {
   }
 
   dispose() {
+    // 显式清理所有定时器，不依赖异步 'close' 事件
+    for (const [, timer] of this.heartbeatTimers) {
+      clearTimeout(timer)
+    }
+    this.heartbeatTimers.clear()
+    for (const [, timer] of this.pingTimers) {
+      clearInterval(timer)
+    }
+    this.pingTimers.clear()
     for (const ws of this.clients) {
       try {
+        ws.removeAllListeners()
         ws.terminate()
       } catch {}
     }

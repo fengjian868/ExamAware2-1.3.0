@@ -172,6 +172,7 @@ function restartAutoSync(): void {
     syncIntervalId = setInterval(() => {
       performTimeSync().catch((err) => appLogger.error('自动时间同步失败', err as Error))
     }, intervalMs)
+    syncIntervalId.unref?.()
   } else {
     // 如果禁用了自动同步，重置偏移量
     disableTimeSync()
@@ -278,6 +279,19 @@ function scheduleNextAutoIncrement() {
     // 递归安排下一次
     scheduleNextAutoIncrement()
   }, delay)
+  autoIncTimer.unref?.()
+}
+
+/** 卸载时间同步服务：清空所有定时器 */
+export function disposeTimeSync(): void {
+  if (syncIntervalId) {
+    clearInterval(syncIntervalId)
+    syncIntervalId = null
+  }
+  if (autoIncTimer) {
+    clearTimeout(autoIncTimer)
+    autoIncTimer = null
+  }
 }
 
 // 获取当前校准时间
@@ -302,7 +316,7 @@ function emitTimeSyncChanged() {
     if (!windows.length) return
     windows.forEach((win) => {
       try {
-        win.webContents.send('time:sync-changed', info)
+        if (!win.isDestroyed()) win.webContents.send('time:sync-changed', info)
       } catch {}
     })
   } catch {}

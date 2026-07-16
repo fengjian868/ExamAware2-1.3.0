@@ -47,8 +47,10 @@ export function createEditorWindow(filePath?: string): BrowserWindow {
         })
 
         win.on('ready-to-show', () => {
-          if (filePath) {
-            win.webContents.send('open-file-at-startup', filePath)
+          if (filePath && !win.isDestroyed()) {
+            try {
+              win.webContents.send('open-file-at-startup', filePath)
+            } catch {}
           }
         })
       }

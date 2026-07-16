@@ -105,13 +105,14 @@ function scheduleWrite() {
     if (writePromise) return
     writePromise = flushWrite()
   }, 100)
+  writeTimer.unref?.()
 }
 
 function broadcastChanged() {
   const full = cache ?? {}
   BrowserWindow.getAllWindows().forEach((w) => {
     try {
-      w.webContents.send('config:changed', full)
+      if (!w.isDestroyed()) w.webContents.send('config:changed', full)
     } catch {}
   })
   listeners.forEach((fn) => {

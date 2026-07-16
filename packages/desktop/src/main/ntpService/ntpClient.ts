@@ -114,6 +114,7 @@ export async function syncTimeWithNTP(
       timeSyncInfo.errorMessage = '与 NTP 服务器通信超时'
       reject(new Error('与 NTP 服务器通信超时'))
     }, 5000)
+    timeoutId.unref?.()
 
     // 错误处理
     socket.on('error', (err) => {

@@ -136,7 +136,10 @@ export class ControlCommandExecutor {
       if (!autoOpenPlayer) return { ok: false, error: '播放器未运行' }
       const openResult = await this.executeOpenPlayer()
       if (!openResult.ok) return openResult
-      await new Promise((r) => setTimeout(r, 800))
+      await new Promise((r) => {
+        const t = setTimeout(r, 800)
+        t.unref?.()
+      })
       win = windowManager.get(PLAYER_ID)
       if (!win || win.isDestroyed()) return { ok: false, error: '播放器启动失败' }
     }
@@ -155,6 +158,7 @@ export class ControlCommandExecutor {
         safeRemoveListener()
         resolve({ ok: false, error: '渲染层响应超时' })
       }, CONTROL_RESULT_TIMEOUT_MS)
+      timer.unref?.()
 
       const onResult = (
         _event: Electron.Event,
@@ -191,7 +195,10 @@ export class ControlCommandExecutor {
       const openResult = await this.executeOpenPlayer()
       if (!openResult.ok) return openResult
       // 等待 PlayerView onMounted 注册 overlay-notice 监听
-      await new Promise((r) => setTimeout(r, 800))
+      await new Promise((r) => {
+        const t = setTimeout(r, 800)
+        t.unref?.()
+      })
       win = windowManager.get(PLAYER_ID)
       if (!win || win.isDestroyed()) {
         return { ok: false, error: '播放器启动失败' }
@@ -212,6 +219,7 @@ export class ControlCommandExecutor {
         safeRemoveListener()
         resolve({ ok: false, error: '广播显示超时' })
       }, 3000)
+      timer.unref?.()
 
       const onResult = (
         _event: Electron.Event,
@@ -277,10 +285,15 @@ export class ControlCommandExecutor {
     const start = Date.now()
     while (Date.now() - start < timeoutMs) {
       const win = windowManager.get(PLAYER_ID)
-      if (win && !win.isDestroyed() && !win.webContents.isLoading()) {
-        return
+      if (win && !win.isDestroyed()) {
+        try {
+          if (!win.webContents.isLoading()) return
+        } catch {}
       }
-      await new Promise((r) => setTimeout(r, 200))
+      await new Promise((r) => {
+        const t = setTimeout(r, 200)
+        t.unref?.()
+      })
     }
   }
 

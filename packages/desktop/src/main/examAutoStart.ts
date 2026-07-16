@@ -183,9 +183,10 @@ export function runExamAutoStartBootCheck(isAutoStartLaunch: boolean): boolean {
   if (isAutoStartLaunch) {
     appLogger.info('[examAutoStart] 本次为开机自启且已无后续考试，应用将退出')
     // 延迟退出，让日志落盘
-    setTimeout(() => {
+    const quitTimer = setTimeout(() => {
       app.quit()
     }, 500)
+    quitTimer.unref?.()
   }
 
   return false

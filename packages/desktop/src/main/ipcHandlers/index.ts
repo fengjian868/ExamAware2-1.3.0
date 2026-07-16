@@ -658,11 +658,17 @@ export function registerIpcHandlers(ctx?: MainContext): () => void {
   // 监听窗口状态变化事件
   const setupWindowStateListeners = (window: BrowserWindow) => {
     window.on('maximize', () => {
-      window.webContents.send('window-maximize')
+      if (window.isDestroyed()) return
+      try {
+        window.webContents.send('window-maximize')
+      } catch {}
     })
 
     window.on('unmaximize', () => {
-      window.webContents.send('window-unmaximize')
+      if (window.isDestroyed()) return
+      try {
+        window.webContents.send('window-unmaximize')
+      } catch {}
     })
   }
 

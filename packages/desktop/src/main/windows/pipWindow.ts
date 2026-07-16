@@ -144,7 +144,20 @@ export function isPipWindowOpen(): boolean {
 
 export function sendPipData(data: { remainingTime?: string; currentTime?: string }): void {
   if (pipWindow && !pipWindow.isDestroyed()) {
-    pipWindow.webContents.send('pip:data', data)
+    try {
+      pipWindow.webContents.send('pip:data', data)
+    } catch {}
+  }
+}
+
+function sendPipInit(opts?: { showRemaining?: boolean; showCurrent?: boolean }): void {
+  if (pipWindow && !pipWindow.isDestroyed()) {
+    try {
+      pipWindow.webContents.send('pip:init', {
+        showRemaining: opts?.showRemaining ?? true,
+        showCurrent: opts?.showCurrent ?? false
+      })
+    } catch {}
   }
 }
 
@@ -185,13 +198,11 @@ export function setupPipIpc(): () => void {
       if (playerWin && !playerWin.isDestroyed()) {
         createPipWindow(playerWin)
         // 发送初始选项
-        setTimeout(() => {
+        const initTimer = setTimeout(() => {
           sendPipData({})
-          pipWindow?.webContents.send('pip:init', {
-            showRemaining: opts?.showRemaining ?? true,
-            showCurrent: opts?.showCurrent ?? false
-          })
+          sendPipInit(opts)
         }, 100)
+        initTimer.unref?.()
         minimizePlayerWindow()
       }
     }

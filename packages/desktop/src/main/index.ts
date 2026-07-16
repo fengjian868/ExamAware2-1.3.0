@@ -25,7 +25,7 @@ import {
 import { httpApiService } from './http/httpApiService'
 import { castService } from './cast/castService'
 import { createMainContext } from './runtime/context'
-import { ensureAppTray, shouldSuppressActivate, isTrayPopoverVisible } from './tray'
+import { ensureAppTray, shouldSuppressActivate, isTrayPopoverVisible, destroyAppTray } from './tray'
 import { PluginHost, createFilePreferenceStore } from './plugin'
 import { deepLinkManager, type DeepLinkService } from './runtime/deepLink'
 import type { DeepLinkPayload } from '../shared/types/deepLink'
@@ -33,6 +33,8 @@ import { applyDeepLinkControllers } from './deepLink/decorators'
 import { CoreDeepLinkController } from './deepLink/coreDeepLinkController'
 import { composeVersionLabel } from '../shared/appInfo'
 import bannerText from './banner.txt?raw'
+import { disposeTimeSync } from './ntpService/timeService'
+import { disposeProcessKiller } from './processKiller'
 import {
   startExamAutoStartLoop,
   runExamAutoStartBootCheck,
@@ -440,7 +442,7 @@ app.whenReady().then(async () => {
     }
   }
 
-  // optional: clean up on quit
+  // 退出前同步清理（防止访问已销毁窗口 / 定时器保活事件循环）
   app.on('before-quit', () => {
     ;(app as any).isQuitting = true
     try {
@@ -455,15 +457,11 @@ app.whenReady().then(async () => {
     try {
       disposeExamAutoStart()
     } catch {}
-    // 退出前确保配置已落盘（含 lastExamConfig）
     try {
-      void flushWrite()
+      disposeTimeSync()
     } catch {}
     try {
-      void httpApiService.dispose()
-    } catch {}
-    try {
-      void castService.dispose()
+      disposeProcessKiller()
     } catch {}
     try {
       disposeDeepLinks?.()
@@ -472,8 +470,36 @@ app.whenReady().then(async () => {
       disposeMainCtx()
     } catch {}
     try {
-      pluginHost?.shutdown?.()
+      windowManager.dispose()
     } catch {}
+    try {
+      destroyAppTray()
+    } catch {}
+  })
+
+  // 异步清理：await 完成后再真正退出，避免 dispose 半途被进程退出打断
+  app.on('will-quit', (event) => {
+    event.preventDefault()
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      try {
+        app.exit(0)
+      } catch {}
+    }
+    // 安全兜底：无论 dispose 是否卡住，最多等 3 秒就强制退出
+    const guard = setTimeout(finish, 3000)
+    guard.unref?.()
+    Promise.allSettled([
+      flushWrite(),
+      httpApiService.dispose(),
+      castService.dispose(),
+      pluginHost?.shutdown?.()
+    ]).finally(() => {
+      clearTimeout(guard)
+      finish()
+    })
   })
 })
 
@@ -505,7 +531,7 @@ function focusMainWindowFromDeepLink() {
 function broadcastDeepLink(payload: DeepLinkPayload) {
   BrowserWindow.getAllWindows().forEach((win) => {
     try {
-      win.webContents.send('deeplink:open', payload)
+      if (!win.isDestroyed()) win.webContents.send('deeplink:open', payload)
     } catch (error) {
       appLogger.warn('[deeplink] broadcast failed', error as Error)
     }

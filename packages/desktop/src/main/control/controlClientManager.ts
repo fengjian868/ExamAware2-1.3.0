@@ -186,6 +186,7 @@ export class ControlClientManager {
         } catch {}
       }
     }, CONNECT_TIMEOUT_MS)
+    connectTimer.unref?.()
 
     ws.on('open', () => {
       clearTimeout(connectTimer)
@@ -301,6 +302,7 @@ export class ControlClientManager {
       conn.reconnectTimer = null
       this.connect(conn)
     }, delay)
+    conn.reconnectTimer.unref?.()
   }
 
   /** 下发命令到单台设备，返回 Promise 回执 */
@@ -321,6 +323,7 @@ export class ControlClientManager {
         resolve(result)
         this.emitCommandResult(peerId, id, result)
       }, timeoutMs)
+      timer.unref?.()
       conn.pending.set(id, { id, kind: command.kind, resolve, timer })
       try {
         conn.ws.send(encodeFrame(frame))

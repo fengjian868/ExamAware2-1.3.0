@@ -42,6 +42,18 @@ export class WindowManager {
     }
   }
 
+  /** 卸载：移除 nativeTheme 监听与 configWatcher 订阅 */
+  dispose() {
+    this.disposeConfigWatcher?.()
+    this.disposeConfigWatcher = undefined
+    if (this.nativeThemeListener) {
+      try {
+        nativeTheme.off('updated', this.nativeThemeListener)
+      } catch {}
+      this.nativeThemeListener = undefined
+    }
+  }
+
   get(id: string): BrowserWindow | undefined {
     return this.windows.get(id)?.win
   }

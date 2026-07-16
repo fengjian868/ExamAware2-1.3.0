@@ -192,7 +192,7 @@ async function toggleTrayPopover() {
     } catch (e) {
       log('toggleTrayPopover: show error', e)
     }
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       try {
         if (!win.isDestroyed()) {
           win.focus()
@@ -202,6 +202,7 @@ async function toggleTrayPopover() {
         log('toggleTrayPopover: focus error', e)
       }
     }, 40)
+    focusTimer.unref?.()
   } else {
     log('toggleTrayPopover: show() + focus() (non-darwin)')
     win.show()
