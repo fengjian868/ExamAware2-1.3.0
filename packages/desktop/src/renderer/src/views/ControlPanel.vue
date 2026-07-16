@@ -39,7 +39,7 @@
               @change="(v) => toggleCheck(d.peerId, v as boolean)"
             />
             <div class="cp-device-main">
-              <div class="cp-device-name" :class="{ warn: clockOffsetWarn(d) }">
+              <div class="cp-device-name">
                 <span class="cp-dot" :class="{ on: d.online, conn: d.connecting }"></span>
                 {{ d.deviceName || d.peerId }}
               </div>
@@ -52,9 +52,6 @@
                   <span v-if="d.status.totalExams" class="cp-offset"
                     >· {{ (d.status.currentExamIndex ?? 0) + 1 }}/{{ d.status.totalExams }}</span
                   >
-                  <span class="cp-offset" :class="{ warn: clockOffsetWarn(d) }">
-                    · 偏移 {{ formatOffset(d.status.now) }}
-                  </span>
                 </span>
                 <span v-else-if="d.connecting">连接中…</span>
                 <span v-else-if="d.lastSeen">重连中…</span>
@@ -107,12 +104,6 @@
               <span class="cp-label">剩余时间</span
               ><span class="cp-value cp-value-mono">{{
                 selected.status?.remainingTime || '—'
-              }}</span>
-            </div>
-            <div class="cp-field">
-              <span class="cp-label">时钟偏移</span
-              ><span class="cp-value">{{
-                selected.status ? formatOffset(selected.status.now) : '—'
               }}</span>
             </div>
             <div class="cp-field">
@@ -397,13 +388,6 @@ const filteredDevices = computed(() =>
 const statusText = (s?: string) =>
   s === 'inProgress' ? '进行中' : s === 'completed' ? '已结束' : s === 'pending' ? '待考' : '—'
 
-const formatOffset = (now?: number) => {
-  if (typeof now !== 'number') return '—'
-  const offset = Date.now() - now
-  const sign = offset >= 0 ? '+' : ''
-  return `${sign}${offset}ms`
-}
-
 const deviceName = (id: string) => devices.value.find((d) => d.peerId === id)?.deviceName || id
 
 const pushLog = (text: string, ok = true) => {
@@ -618,12 +602,6 @@ const batchSendTo = async (peerIds: string[], command: any) => {
   batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
   const okCount = batchResults.value.filter((r) => r.result.ok).length
   pushLog(`${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
-}
-
-// 时钟偏移告警（功能 C）：偏移绝对值 > 2000ms 视为异常
-const clockOffsetWarn = (d: ControlDevice) => {
-  if (!d.online || !d.status || typeof d.status.now !== 'number') return false
-  return Math.abs(Date.now() - d.status.now) > 2000
 }
 
 // ===== 功能 D：画面预览（系统级截图，手动点按，支持选屏） =====
@@ -1150,12 +1128,6 @@ void ipc
   color: var(--td-error-color);
 }
 
-/* 时钟偏移告警（功能 C） */
-.cp-offset.warn,
-.cp-device-name.warn {
-  color: var(--td-error-color);
-  font-weight: 600;
-}
 .cp-offset {
   font-size: 11px;
 }
