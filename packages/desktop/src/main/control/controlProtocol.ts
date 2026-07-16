@@ -16,6 +16,7 @@ export type ControlMessageKind =
   | 'end'
   | 'alert'
   | 'setRoom'
+  | 'setMaterial'
   | 'broadcast'
   | 'exit'
   | 'openPlayer'
@@ -56,6 +57,13 @@ export interface SetRoomCommandData {
   room: string
 }
 
+export interface SetMaterialCommandData {
+  paperPages?: number
+  paperSheets?: number
+  answerPages?: number
+  answerSheets?: number
+}
+
 export interface BroadcastCommandData {
   title: string
   body: string
@@ -66,6 +74,16 @@ export interface BroadcastCommandData {
 export interface ControlCommand {
   kind: Exclude<ControlMessageKind, 'hello' | 'heartbeat' | 'state'>
   data?: unknown
+}
+
+/** 集控命令数据（命令 kind → payload 类型） */
+export interface ControlCommandDataMap {
+  pushConfig: PushConfigCommandData
+  switch: SwitchCommandData
+  alert: AlertCommandData
+  setRoom: SetRoomCommandData
+  setMaterial: SetMaterialCommandData
+  broadcast: BroadcastCommandData
 }
 
 // ===== 状态/回执 payload =====
@@ -208,6 +226,26 @@ export function asSetRoomData(data: unknown): SetRoomCommandData | null {
   const v = data as Record<string, unknown>
   if (typeof v.room !== 'string') return null
   return { room: v.room }
+}
+
+export function asSetMaterialData(data: unknown): SetMaterialCommandData | null {
+  if (!data || typeof data !== 'object') return null
+  const v = data as Record<string, unknown>
+  const payload: SetMaterialCommandData = {}
+  if (typeof v.paperPages === 'number') payload.paperPages = v.paperPages
+  if (typeof v.paperSheets === 'number') payload.paperSheets = v.paperSheets
+  if (typeof v.answerPages === 'number') payload.answerPages = v.answerPages
+  if (typeof v.answerSheets === 'number') payload.answerSheets = v.answerSheets
+  // 至少有一个有效字段
+  if (
+    payload.paperPages === undefined &&
+    payload.paperSheets === undefined &&
+    payload.answerPages === undefined &&
+    payload.answerSheets === undefined
+  ) {
+    return null
+  }
+  return payload
 }
 
 export function asBroadcastData(data: unknown): BroadcastCommandData | null {

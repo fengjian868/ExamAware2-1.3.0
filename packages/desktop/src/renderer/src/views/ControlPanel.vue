@@ -191,10 +191,10 @@
             批量回执将显示在此
           </div>
           <div v-for="r in batchResults" :key="r.peerId" class="cp-result-row">
-            <span class="cp-dot" :class="{ on: r.result.ok }"></span>
+            <span class="cp-dot" :class="{ on: r.result?.ok }"></span>
             <span class="cp-result-name">{{ deviceName(r.peerId) }}</span>
-            <span class="cp-result-state" :class="{ ok: r.result.ok }">
-              {{ r.result.ok ? '成功' : r.result.error || '失败' }}
+            <span class="cp-result-state" :class="{ ok: r.result?.ok }">
+              {{ r.result?.ok ? '成功' : r.result?.error || '失败' }}
             </span>
           </div>
         </div>
@@ -260,24 +260,58 @@
       <t-input v-model="roomValue" placeholder="请输入考场号" maxlength="10" />
     </t-dialog>
 
-    <!-- 设置页码对话框 -->
+    <!-- 设置页码/场次对话框 -->
     <t-dialog
       v-model:visible="setPageVisible"
-      header="设置页码（考试场次）"
+      header="设置页码 / 场次"
       :on-confirm="confirmSetPage"
-      width="400px"
+      width="420px"
     >
-      <div class="cp-setpage-hint">
-        将选中的设备切换到指定考试场次。被控端必须已加载档案且播放器已开。
-      </div>
-      <t-input-number
-        v-model="setPageValue"
-        :min="1"
-        :step="1"
-        placeholder="场次序号（从 1 开始）"
-        style="width: 100%; margin-top: 12px"
+      <t-radio-group
+        v-model="setPageMode"
+        variant="default-filled"
+        :options="[
+          { label: '切换考试场次', value: 'exam' },
+          { label: '设置试卷 / 答题卡', value: 'material' }
+        ]"
+        style="margin-bottom: 12px"
       />
-      <div v-if="setPageTotal" class="cp-setpage-total">共 {{ setPageTotal }} 场</div>
+
+      <template v-if="setPageMode === 'exam'">
+        <div class="cp-setpage-hint">
+          将选中的设备切换到指定考试场次。被控端必须已加载档案且播放器已开。
+        </div>
+        <t-input-number
+          v-model="setPageValue"
+          :min="1"
+          :step="1"
+          placeholder="场次序号（从 1 开始）"
+          style="width: 100%; margin-top: 12px"
+        />
+        <div v-if="setPageTotal" class="cp-setpage-total">共 {{ setPageTotal }} 场</div>
+      </template>
+
+      <template v-else>
+        <div class="cp-setpage-hint">
+          设置被控端试卷与答题卡的张数和页数。修改张数会自动联动页数。
+        </div>
+        <div class="cp-material-grid">
+          <div class="cp-material-group">
+            <span class="cp-material-label">试卷</span>
+            <div class="cp-material-row">
+              <t-input-number v-model="setPaperSheets" :min="0" :max="10" :step="1" suffix="张" />
+              <t-input-number v-model="setPaperPages" :min="0" :max="20" :step="1" suffix="页" />
+            </div>
+          </div>
+          <div class="cp-material-group">
+            <span class="cp-material-label">答题卡</span>
+            <div class="cp-material-row">
+              <t-input-number v-model="setAnswerSheets" :min="0" :max="10" :step="1" suffix="张" />
+              <t-input-number v-model="setAnswerPages" :min="0" :max="20" :step="1" suffix="页" />
+            </div>
+          </div>
+        </div>
+      </template>
     </t-dialog>
 
     <!-- 紧急广播对话框 -->
@@ -466,7 +500,7 @@ const batchSend = async (command: any) => {
     const res = await api.sendCommand(checkedIds.value, command)
     batchResults.value = res || []
     batchProgress.value = { total: checkedIds.value.length, done: batchResults.value.length }
-    const okCount = batchResults.value.filter((r) => r.result.ok).length
+    const okCount = batchResults.value.filter((r) => r.result?.ok).length
     pushLog(`批量 ${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
   } catch (e) {
     const msg = e instanceof Error ? e.message : '批量发送异常'
@@ -500,7 +534,7 @@ const pickAndPushConfig = async (peerIds: string[]) => {
     const res = await api.pushConfigFile(peerIds, config)
     batchResults.value = res || []
     batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
-    const okCount = batchResults.value.filter((r) => r.result.ok).length
+    const okCount = batchResults.value.filter((r) => r.result?.ok).length
     pushLog(`推送档案完成：${okCount}/${batchResults.value.length} 成功`)
   } catch (e) {
     const msg = e instanceof Error ? e.message : '推送档案异常'
@@ -542,11 +576,16 @@ const confirmRoom = async () => {
   await sendOne(roomTarget.value, { kind: 'setRoom', data: { room: roomValue.value } })
 }
 
-// 设置页码对话框（集中切换考试场次）
+// 设置页码/场次对话框（切换场次 或 设置试卷/答题卡页数张数）
 const setPageVisible = ref(false)
+const setPageMode = ref<'exam' | 'material'>('exam')
 const setPageValue = ref(1)
 const setPageTotal = ref(0)
 const setPageTarget = ref<string[]>([])
+const setPaperSheets = ref(0)
+const setPaperPages = ref(0)
+const setAnswerSheets = ref(0)
+const setAnswerPages = ref(0)
 const openSetPageDialog = (peerIds: string | string[]) => {
   const ids = Array.isArray(peerIds) ? peerIds : [peerIds]
   if (!ids.length) {
@@ -554,19 +593,39 @@ const openSetPageDialog = (peerIds: string | string[]) => {
     return
   }
   setPageTarget.value = ids
+  setPageMode.value = 'exam'
   // 取选中设备的当前场次和总场数作为默认值
   const first = devices.value.find((d) => d.peerId === ids[0])
   setPageValue.value = (first?.status?.currentExamIndex ?? 0) + 1
   setPageTotal.value = first?.status?.totalExams ?? 0
+  // 材料默认值从 0 开始
+  setPaperSheets.value = 0
+  setPaperPages.value = 0
+  setAnswerSheets.value = 0
+  setAnswerPages.value = 0
   setPageVisible.value = true
 }
 const confirmSetPage = async () => {
   setPageVisible.value = false
-  const index = (setPageValue.value || 1) - 1
-  if (setPageTarget.value.length === 1) {
-    await sendOne(setPageTarget.value[0], { kind: 'switch', data: { index } })
+  if (setPageMode.value === 'exam') {
+    const index = (setPageValue.value || 1) - 1
+    if (setPageTarget.value.length === 1) {
+      await sendOne(setPageTarget.value[0], { kind: 'switch', data: { index } })
+    } else {
+      await batchSend({ kind: 'switch', data: { index } })
+    }
   } else {
-    await batchSend({ kind: 'switch', data: { index } })
+    const data = {
+      paperSheets: Number(setPaperSheets.value) || 0,
+      paperPages: Number(setPaperPages.value) || 0,
+      answerSheets: Number(setAnswerSheets.value) || 0,
+      answerPages: Number(setAnswerPages.value) || 0
+    }
+    if (setPageTarget.value.length === 1) {
+      await sendOne(setPageTarget.value[0], { kind: 'setMaterial', data })
+    } else {
+      await batchSend({ kind: 'setMaterial', data })
+    }
   }
 }
 
@@ -594,14 +653,25 @@ const confirmBroadcast = async () => {
 }
 
 const batchSendTo = async (peerIds: string[], command: any) => {
+  if (!peerIds.length) {
+    MessagePlugin.warning('请选择目标设备')
+    return
+  }
   batchResults.value = []
   batchProgress.value = { total: peerIds.length, done: 0 }
   pushLog(`${command.kind} → ${peerIds.length} 台`)
-  const res = await api.sendCommand(peerIds, command)
-  batchResults.value = res || []
-  batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
-  const okCount = batchResults.value.filter((r) => r.result.ok).length
-  pushLog(`${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
+  try {
+    const res = await api.sendCommand(peerIds, command)
+    batchResults.value = res || []
+    batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
+    const okCount = batchResults.value.filter((r) => r.result?.ok).length
+    pushLog(`${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '发送异常'
+    pushLog(`${command.kind} 异常：${msg}`, false)
+    MessagePlugin.error(msg)
+    batchProgress.value = { total: 0, done: 0 }
+  }
 }
 
 // ===== 功能 D：画面预览（系统级截图，手动点按，支持选屏） =====
@@ -800,7 +870,7 @@ const executePreset = async () => {
         total: checkedIds.value.length,
         done: batchResults.value.length
       }
-      const okCount = batchResults.value.filter((r) => r.result.ok).length
+      const okCount = batchResults.value.filter((r) => r.result?.ok).length
       pushLog(`步骤完成：${okCount}/${batchResults.value.length} 成功`)
       if (step.delayMs && step.delayMs > 0) {
         pushLog(`等待 ${step.delayMs / 1000}s…`)
@@ -1046,6 +1116,31 @@ void ipc
   font-size: 12px;
   color: var(--td-text-color-secondary);
   margin-top: 8px;
+}
+.cp-material-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.cp-material-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cp-material-label {
+  font-size: 13px;
+  color: var(--td-text-color-primary);
+  width: 48px;
+  flex-shrink: 0;
+}
+.cp-material-row {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+}
+.cp-material-row :deep(.t-input-number) {
+  flex: 1;
 }
 .cp-section-title {
   font-size: 13px;

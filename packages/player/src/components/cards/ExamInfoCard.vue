@@ -179,6 +179,16 @@ export interface ExamPlayerCtx {
   preCountdownMinutes?: any;
   sortedExamInfos?: any;
   pagesPerSheet?: { value: number };
+  paperPages?: { value: number };
+  paperSheets?: { value: number };
+  answerPages?: { value: number };
+  answerSheets?: { value: number };
+  setMaterial?: (payload: {
+    paperPages?: number;
+    paperSheets?: number;
+    answerPages?: number;
+    answerSheets?: number;
+  }) => void;
 }
 
 const ctx = inject<ExamPlayerCtx>('ExamPlayerCtx')!;
@@ -276,11 +286,20 @@ const statusColorClass = computed(() => {
 });
 
 // ====== 页数统计逻辑 ======
-// 每次打开播放器重置页数（不持久化到 localStorage）
-const paperPages = ref(0);
-const paperSheets = ref(0);
-const answerPages = ref(0);
-const answerSheets = ref(0);
+// 从 ExamPlayerCtx 读取页数/张数状态，通过 ctx.setMaterial 修改
+const paperPages = computed(() => ctx.paperPages?.value ?? 0);
+const paperSheets = computed(() => ctx.paperSheets?.value ?? 0);
+const answerPages = computed(() => ctx.answerPages?.value ?? 0);
+const answerSheets = computed(() => ctx.answerSheets?.value ?? 0);
+
+const setMaterial = (payload: {
+  paperPages?: number;
+  paperSheets?: number;
+  answerPages?: number;
+  answerSheets?: number;
+}) => {
+  ctx.setMaterial?.(payload);
+};
 
 // 加减按钮显隐控制
 const showControls = ref({
@@ -392,46 +411,27 @@ watch(
   }
 );
 
-// 张数联动页数：1张=pagesPerSheet页
-const syncPagesFromSheets = (
-  sheetsField: 'paperSheets' | 'answerSheets',
-  pagesField: 'paperPages' | 'answerPages'
-) => {
-  const sheets = sheetsField === 'paperSheets' ? paperSheets.value : answerSheets.value;
-  const ratio = pagesPerSheet.value;
-  const newPages = sheets * ratio;
-  if (newPages <= MAX_PAGES) {
-    if (pagesField === 'paperPages') paperPages.value = newPages;
-    else answerPages.value = newPages;
-  } else {
-    // 超过上限则截断张数
-    const maxSheets = Math.floor(MAX_PAGES / ratio);
-    if (sheetsField === 'paperSheets') paperSheets.value = maxSheets;
-    else answerSheets.value = maxSheets;
-    if (pagesField === 'paperPages') paperPages.value = maxSheets * ratio;
-    else answerPages.value = maxSheets * ratio;
-  }
-};
-
 const increase = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerSheets') => {
   if (!canEdit.value) return;
   switch (field) {
     case 'paperPages':
-      if (paperPages.value < MAX_PAGES) paperPages.value++;
+      if (paperPages.value < MAX_PAGES) {
+        setMaterial({ paperPages: paperPages.value + 1 });
+      }
       break;
     case 'paperSheets':
       if (paperSheets.value < MAX_SHEETS) {
-        paperSheets.value++;
-        syncPagesFromSheets('paperSheets', 'paperPages');
+        setMaterial({ paperSheets: paperSheets.value + 1 });
       }
       break;
     case 'answerPages':
-      if (answerPages.value < MAX_PAGES) answerPages.value++;
+      if (answerPages.value < MAX_PAGES) {
+        setMaterial({ answerPages: answerPages.value + 1 });
+      }
       break;
     case 'answerSheets':
       if (answerSheets.value < MAX_SHEETS) {
-        answerSheets.value++;
-        syncPagesFromSheets('answerSheets', 'answerPages');
+        setMaterial({ answerSheets: answerSheets.value + 1 });
       }
       break;
   }
@@ -445,21 +445,23 @@ const decrease = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'answerS
   if (!canEdit.value) return;
   switch (field) {
     case 'paperPages':
-      if (paperPages.value > 0) paperPages.value--;
+      if (paperPages.value > 0) {
+        setMaterial({ paperPages: paperPages.value - 1 });
+      }
       break;
     case 'paperSheets':
       if (paperSheets.value > 0) {
-        paperSheets.value--;
-        syncPagesFromSheets('paperSheets', 'paperPages');
+        setMaterial({ paperSheets: paperSheets.value - 1 });
       }
       break;
     case 'answerPages':
-      if (answerPages.value > 0) answerPages.value--;
+      if (answerPages.value > 0) {
+        setMaterial({ answerPages: answerPages.value - 1 });
+      }
       break;
     case 'answerSheets':
       if (answerSheets.value > 0) {
-        answerSheets.value--;
-        syncPagesFromSheets('answerSheets', 'answerPages');
+        setMaterial({ answerSheets: answerSheets.value - 1 });
       }
       break;
   }
@@ -477,18 +479,16 @@ const setValue = (
   let val = Math.max(0, Math.floor(Number(target.value)) || 0);
   switch (field) {
     case 'paperPages':
-      paperPages.value = Math.min(val, MAX_PAGES);
+      setMaterial({ paperPages: Math.min(val, MAX_PAGES) });
       break;
     case 'paperSheets':
-      paperSheets.value = Math.min(val, MAX_SHEETS);
-      syncPagesFromSheets('paperSheets', 'paperPages');
+      setMaterial({ paperSheets: Math.min(val, MAX_SHEETS) });
       break;
     case 'answerPages':
-      answerPages.value = Math.min(val, MAX_PAGES);
+      setMaterial({ answerPages: Math.min(val, MAX_PAGES) });
       break;
     case 'answerSheets':
-      answerSheets.value = Math.min(val, MAX_SHEETS);
-      syncPagesFromSheets('answerSheets', 'answerPages');
+      setMaterial({ answerSheets: Math.min(val, MAX_SHEETS) });
       break;
   }
   showControlsAndScheduleHide(field);
@@ -505,10 +505,7 @@ watch(
   () => ctx.examStatus?.value?.status,
   (status, prevStatus) => {
     if (status === 'completed' && prevStatus === 'inProgress') {
-      paperPages.value = 0;
-      paperSheets.value = 0;
-      answerPages.value = 0;
-      answerSheets.value = 0;
+      setMaterial({ paperPages: 0, paperSheets: 0, answerPages: 0, answerSheets: 0 });
       showControls.value = {
         paperPages: true,
         paperSheets: true,

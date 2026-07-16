@@ -475,6 +475,50 @@ const examInfoLargeFontState = ref<boolean>(Boolean(props.examInfoLargeFont));
 
 const materialFontScaleState = ref<number>(clampMaterialFontScale(props.materialFontScale));
 
+// ===== 试卷/答题卡 页数/张数（集中控制可设置）=====
+const MAX_MATERIAL_PAGES = 20;
+const MAX_MATERIAL_SHEETS = 10;
+const paperPages = ref<number>(0);
+const paperSheets = ref<number>(0);
+const answerPages = ref<number>(0);
+const answerSheets = ref<number>(0);
+
+const safePagesPerSheet = computed(() => {
+  const n = Number(props.pagesPerSheet);
+  return Number.isFinite(n) && n >= 1 ? n : 4;
+});
+
+const setMaterial = (payload: {
+  paperPages?: number;
+  paperSheets?: number;
+  answerPages?: number;
+  answerSheets?: number;
+}) => {
+  const ratio = safePagesPerSheet.value;
+  // 试卷：如果同时给 pages 和 sheets，以 pages 为准；只给 sheets 则联动 pages
+  if (typeof payload.paperPages === 'number') {
+    paperPages.value = Math.min(MAX_MATERIAL_PAGES, Math.max(0, Math.floor(payload.paperPages)));
+  }
+  if (typeof payload.paperSheets === 'number') {
+    const sheets = Math.min(MAX_MATERIAL_SHEETS, Math.max(0, Math.floor(payload.paperSheets)));
+    paperSheets.value = sheets;
+    if (typeof payload.paperPages !== 'number') {
+      paperPages.value = Math.min(MAX_MATERIAL_PAGES, sheets * ratio);
+    }
+  }
+  // 答题卡
+  if (typeof payload.answerPages === 'number') {
+    answerPages.value = Math.min(MAX_MATERIAL_PAGES, Math.max(0, Math.floor(payload.answerPages)));
+  }
+  if (typeof payload.answerSheets === 'number') {
+    const sheets = Math.min(MAX_MATERIAL_SHEETS, Math.max(0, Math.floor(payload.answerSheets)));
+    answerSheets.value = sheets;
+    if (typeof payload.answerPages !== 'number') {
+      answerPages.value = Math.min(MAX_MATERIAL_PAGES, sheets * ratio);
+    }
+  }
+};
+
 const auxiliaryFontScaleState = ref<number>(clampAuxiliaryFontScale(props.auxiliaryFontScale));
 
 const preCountdownMinutesState = ref<number>(Number(props.preCountdownMinutes) || 15);
@@ -835,9 +879,9 @@ watch(
   { deep: true }
 );
 
-// 执行单条集控命令（switch/end/alert/setRoom/exit），返回回执
+// 执行单条集控命令（switch/end/alert/setRoom/exit/setMaterial），返回回执
 const executeControl = async (
-  kind: 'switch' | 'end' | 'alert' | 'setRoom' | 'exit',
+  kind: 'switch' | 'end' | 'alert' | 'setRoom' | 'exit' | 'setMaterial',
   data: any
 ): Promise<{ ok: boolean; error?: string }> => {
   try {
@@ -854,6 +898,15 @@ const executeControl = async (
       }
       const ok = switchToExam(target);
       return ok ? { ok: true } : { ok: false, error: '无法切换' };
+    }
+    if (kind === 'setMaterial') {
+      setMaterial({
+        paperPages: typeof data?.paperPages === 'number' ? data.paperPages : undefined,
+        paperSheets: typeof data?.paperSheets === 'number' ? data.paperSheets : undefined,
+        answerPages: typeof data?.answerPages === 'number' ? data.answerPages : undefined,
+        answerSheets: typeof data?.answerSheets === 'number' ? data.answerSheets : undefined
+      });
+      return { ok: true };
     }
     if (kind === 'end') {
       const exam = currentExam.value;
@@ -1364,10 +1417,12 @@ const ctxForCards = {
   currentExamIndex: computed(() => state.value.currentExamIndex),
   preCountdownMinutes: preCountdownMinutesState,
   classicShowMaterial: computed(() => Boolean(props.classicShowMaterial)),
-  pagesPerSheet: computed(() => {
-    const n = Number(props.pagesPerSheet);
-    return Number.isFinite(n) && n >= 1 ? n : 4;
-  })
+  pagesPerSheet: safePagesPerSheet,
+  paperPages: computed(() => paperPages.value),
+  paperSheets: computed(() => paperSheets.value),
+  answerPages: computed(() => answerPages.value),
+  answerSheets: computed(() => answerSheets.value),
+  setMaterial
 };
 provide('ExamPlayerCtx', ctxForCards);
 

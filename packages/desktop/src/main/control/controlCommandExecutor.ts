@@ -16,6 +16,7 @@ import {
   asSwitchData,
   asAlertData,
   asSetRoomData,
+  asSetMaterialData,
   asBroadcastData,
   buildResult,
   encodeFrame,
@@ -68,6 +69,8 @@ export class ControlCommandExecutor {
           return await this.executeViaRenderer('alert', command.data, true)
         case 'setRoom':
           return await this.executeViaRenderer('setRoom', command.data)
+        case 'setMaterial':
+          return await this.executeViaRenderer('setMaterial', command.data)
         case 'exit':
           return await this.executeViaRenderer('exit', command.data)
         case 'broadcast':
@@ -116,7 +119,7 @@ export class ControlCommandExecutor {
 
   /** 通过 IPC 转发给 player 渲染层执行，等待回执 */
   private async executeViaRenderer(
-    kind: 'switch' | 'end' | 'alert' | 'setRoom' | 'exit',
+    kind: 'switch' | 'end' | 'alert' | 'setRoom' | 'setMaterial' | 'exit',
     data: unknown,
     autoOpenPlayer = false
   ): Promise<CommandResultData> {
@@ -124,6 +127,8 @@ export class ControlCommandExecutor {
     if (kind === 'switch' && !asSwitchData(data)) return { ok: false, error: 'switch 参数无效' }
     if (kind === 'alert' && !asAlertData(data)) return { ok: false, error: 'alert 参数无效' }
     if (kind === 'setRoom' && !asSetRoomData(data)) return { ok: false, error: 'setRoom 参数无效' }
+    if (kind === 'setMaterial' && !asSetMaterialData(data))
+      return { ok: false, error: 'setMaterial 参数无效' }
 
     let win = windowManager.get(PLAYER_ID)
     if (!win || win.isDestroyed()) {
