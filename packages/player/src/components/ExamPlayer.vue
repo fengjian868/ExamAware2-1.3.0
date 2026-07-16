@@ -109,7 +109,7 @@
         <div class="notice-card">
           <div class="notice-content" v-html="renderedMarkdown"></div>
           <t-button theme="primary" size="large" @click="handleCloseNotice">
-            关闭（{{ currentNotice?.remainingSec }}s）
+            {{ currentNotice?.timeoutMs <= 0 ? '关闭' : `关闭（${currentNotice?.remainingSec}s）` }}
           </t-button>
         </div>
       </div>

@@ -104,6 +104,8 @@ export function useReminderService(): (ReminderServiceApi & {
   const startNoticeCountdown = () => {
     stopNoticeCountdown();
     if (!currentNoticeRef.value) return;
+    // timeoutMs <= 0 表示持久通知（如紧急广播），不启动自动关闭倒计时
+    if (currentNoticeRef.value.timeoutMs <= 0) return;
     noticeTimer = window.setInterval(() => {
       if (!currentNoticeRef.value) return;
       if (currentNoticeRef.value.remainingSec <= 1) {

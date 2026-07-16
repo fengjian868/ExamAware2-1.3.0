@@ -110,7 +110,6 @@
             <t-button size="small" :loading="previewLoading" @click="openPreview(selected.peerId)"
               >画面预览</t-button
             >
-            <t-button size="small" @click="quickSwitch(selected.peerId)">切场</t-button>
             <t-button
               size="small"
               theme="danger"
@@ -153,9 +152,6 @@
         <div class="cp-batch-actions">
           <t-button block @click="pickAndPushConfig(checkedIds)">推送档案</t-button>
           <t-button block @click="batchSend({ kind: 'openPlayer' })">全部打开播放器</t-button>
-          <t-button block @click="batchSend({ kind: 'switch', data: { direction: 'next' } })"
-            >全部切下一场</t-button
-          >
           <t-button block theme="danger" variant="outline" @click="batchSend({ kind: 'end' })"
             >全部结束</t-button
           >
@@ -440,12 +436,6 @@ const batchSend = async (command: any) => {
   }
 }
 
-// 切场：单台弹选择
-const quickSwitch = async (peerId: string) => {
-  const direction = confirm('确定切换到下一场？\n（取消则切换到上一场）') ? 'next' : 'prev'
-  await sendOne(peerId, { kind: 'switch', data: { direction } })
-}
-
 // 推送档案：选本地 .ea2 文件
 const pickAndPushConfig = async (peerIds: string[]) => {
   if (!peerIds.length) {
@@ -607,7 +597,6 @@ const batchProgress = ref<{ total: number; done: number }>({ total: 0, done: 0 }
 // ===== 功能 E：操作预设 / 一键流程 =====
 type PresetCommand =
   | 'pushConfig'
-  | 'switch'
   | 'end'
   | 'alert'
   | 'setRoom'
@@ -629,7 +618,6 @@ const presetConfigPath = ref('')
 const stepOptions = [
   { label: '推送档案', value: 'pushConfig' },
   { label: '打开播放器', value: 'openPlayer' },
-  { label: '切下一场', value: 'switch' },
   { label: '结束当前', value: 'end' },
   { label: '提醒', value: 'alert' },
   { label: '改考场号', value: 'setRoom' },
@@ -669,8 +657,6 @@ const presetStepLabel = (step: PresetStep) => {
       return '推送档案'
     case 'openPlayer':
       return '打开播放器'
-    case 'switch':
-      return step.data?.direction === 'prev' ? '切上一场' : '切下一场'
     case 'end':
       return '结束当前'
     case 'alert':
@@ -689,8 +675,7 @@ const presetStepLabel = (step: PresetStep) => {
 const addStep = () => {
   const cmd = newStepCommand.value
   const step: PresetStep = { command: cmd }
-  if (cmd === 'switch') step.data = { direction: 'next' }
-  else if (cmd === 'alert') step.data = { title: '请注意考场纪律' }
+  if (cmd === 'alert') step.data = { title: '请注意考场纪律' }
   else if (cmd === 'setRoom') step.data = { room: '' }
   else if (cmd === 'broadcast') step.data = { title: '通知', body: '' }
   else if (cmd === 'pushConfig') step.data = { config: currentPresetConfig.value }

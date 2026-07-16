@@ -65,7 +65,7 @@ export class ControlCommandExecutor {
         case 'end':
           return await this.executeViaRenderer('end', command.data)
         case 'alert':
-          return await this.executeViaRenderer('alert', command.data)
+          return await this.executeViaRenderer('alert', command.data, true)
         case 'setRoom':
           return await this.executeViaRenderer('setRoom', command.data)
         case 'exit':
@@ -117,22 +117,30 @@ export class ControlCommandExecutor {
   /** 通过 IPC 转发给 player 渲染层执行，等待回执 */
   private async executeViaRenderer(
     kind: 'switch' | 'end' | 'alert' | 'setRoom' | 'exit',
-    data: unknown
+    data: unknown,
+    autoOpenPlayer = false
   ): Promise<CommandResultData> {
     // 参数校验
     if (kind === 'switch' && !asSwitchData(data)) return { ok: false, error: 'switch 参数无效' }
     if (kind === 'alert' && !asAlertData(data)) return { ok: false, error: 'alert 参数无效' }
     if (kind === 'setRoom' && !asSetRoomData(data)) return { ok: false, error: 'setRoom 参数无效' }
 
-    const win = windowManager.get(PLAYER_ID)
+    let win = windowManager.get(PLAYER_ID)
     if (!win || win.isDestroyed()) {
-      return { ok: false, error: '播放器未运行' }
+      // alert 等需要在播放页上显示的命令，自动开 player
+      if (!autoOpenPlayer) return { ok: false, error: '播放器未运行' }
+      const openResult = await this.executeOpenPlayer()
+      if (!openResult.ok) return openResult
+      await new Promise((r) => setTimeout(r, 800))
+      win = windowManager.get(PLAYER_ID)
+      if (!win || win.isDestroyed()) return { ok: false, error: '播放器启动失败' }
     }
 
+    const playerWin = win
     const reqId = `${kind}-${Date.now()}-${Math.random().toString(16).slice(2)}`
     return new Promise<CommandResultData>((resolve) => {
       const timer = setTimeout(() => {
-        win.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
+        playerWin!.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
         resolve({ ok: false, error: '渲染层响应超时' })
       }, CONTROL_RESULT_TIMEOUT_MS)
 
@@ -142,11 +150,11 @@ export class ControlCommandExecutor {
       ) => {
         if (payload?.id !== reqId) return
         clearTimeout(timer)
-        win.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
+        playerWin!.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
         resolve({ ok: Boolean(payload.ok), error: payload.error })
       }
-      win.webContents.on(CONTROL_RESULT_CHANNEL, onResult)
-      win.webContents.send(CONTROL_IPC_CHANNEL, { id: reqId, kind, data })
+      playerWin!.webContents.on(CONTROL_RESULT_CHANNEL, onResult)
+      playerWin!.webContents.send(CONTROL_IPC_CHANNEL, { id: reqId, kind, data })
     })
   }
 
