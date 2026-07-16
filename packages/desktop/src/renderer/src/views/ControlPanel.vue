@@ -46,6 +46,12 @@
               <div class="cp-device-sub">
                 <span v-if="d.online && d.status">
                   {{ d.status.currentExam || '—' }} · {{ statusText(d.status.examStatus) }}
+                  <span v-if="d.status.remainingTime" class="cp-offset"
+                    >· 剩 {{ d.status.remainingTime }}</span
+                  >
+                  <span v-if="d.status.totalExams" class="cp-offset"
+                    >· {{ (d.status.currentExamIndex ?? 0) + 1 }}/{{ d.status.totalExams }}</span
+                  >
                   <span class="cp-offset" :class="{ warn: clockOffsetWarn(d) }">
                     · 偏移 {{ formatOffset(d.status.now) }}
                   </span>
@@ -90,6 +96,20 @@
               ><span class="cp-value">{{ selected.status?.roomNumber || '—' }}</span>
             </div>
             <div class="cp-field">
+              <span class="cp-label">考试进度</span
+              ><span class="cp-value">{{
+                selected.status && selected.status.totalExams
+                  ? `${(selected.status.currentExamIndex ?? 0) + 1} / ${selected.status.totalExams}`
+                  : '—'
+              }}</span>
+            </div>
+            <div class="cp-field">
+              <span class="cp-label">剩余时间</span
+              ><span class="cp-value cp-value-mono">{{
+                selected.status?.remainingTime || '—'
+              }}</span>
+            </div>
+            <div class="cp-field">
               <span class="cp-label">时钟偏移</span
               ><span class="cp-value">{{
                 selected.status ? formatOffset(selected.status.now) : '—'
@@ -98,6 +118,14 @@
             <div class="cp-field">
               <span class="cp-label">档案加载</span
               ><span class="cp-value">{{ selected.status?.configLoaded ? '是' : '否' }}</span>
+            </div>
+            <div class="cp-field">
+              <span class="cp-label">播放器</span
+              ><span
+                class="cp-value"
+                :class="{ ok: selected.status?.playerOpened, err: !selected.status?.playerOpened }"
+                >{{ selected.status?.playerOpened ? '已开' : '未开' }}</span
+              >
             </div>
           </div>
 
@@ -119,6 +147,7 @@
             >
             <t-button size="small" @click="openAlertDialog(selected.peerId)">提醒</t-button>
             <t-button size="small" @click="openRoomDialog(selected.peerId)">改考场号</t-button>
+            <t-button size="small" @click="openSetPageDialog(selected.peerId)">设置页码</t-button>
             <t-button size="small" @click="openBroadcastDialog([selected.peerId])">广播</t-button>
             <t-button
               size="small"
@@ -152,6 +181,7 @@
         <div class="cp-batch-actions">
           <t-button block @click="pickAndPushConfig(checkedIds)">推送档案</t-button>
           <t-button block @click="batchSend({ kind: 'openPlayer' })">全部打开播放器</t-button>
+          <t-button block @click="openSetPageDialog(checkedIds)">批量设置页码</t-button>
           <t-button block theme="danger" variant="outline" @click="batchSend({ kind: 'end' })"
             >全部结束</t-button
           >
@@ -239,6 +269,26 @@
       <t-input v-model="roomValue" placeholder="请输入考场号" maxlength="10" />
     </t-dialog>
 
+    <!-- 设置页码对话框 -->
+    <t-dialog
+      v-model:visible="setPageVisible"
+      header="设置页码（考试场次）"
+      :on-confirm="confirmSetPage"
+      width="400px"
+    >
+      <div class="cp-setpage-hint">
+        将选中的设备切换到指定考试场次。被控端必须已加载档案且播放器已开。
+      </div>
+      <t-input-number
+        v-model="setPageValue"
+        :min="1"
+        :step="1"
+        placeholder="场次序号（从 1 开始）"
+        style="width: 100%; margin-top: 12px"
+      />
+      <div v-if="setPageTotal" class="cp-setpage-total">共 {{ setPageTotal }} 场</div>
+    </t-dialog>
+
     <!-- 紧急广播对话框 -->
     <t-dialog
       v-model:visible="broadcastVisible"
@@ -309,6 +359,12 @@ interface DeviceStatus {
   roomNumber: string
   now: number
   configLoaded: boolean
+  currentExamIndex?: number
+  totalExams?: number
+  remainingTime?: string
+  examStart?: number
+  examEnd?: number
+  playerOpened?: boolean
 }
 interface ControlDevice {
   peerId: string
@@ -500,6 +556,34 @@ const openRoomDialog = (peerId: string) => {
 const confirmRoom = async () => {
   roomVisible.value = false
   await sendOne(roomTarget.value, { kind: 'setRoom', data: { room: roomValue.value } })
+}
+
+// 设置页码对话框（集中切换考试场次）
+const setPageVisible = ref(false)
+const setPageValue = ref(1)
+const setPageTotal = ref(0)
+const setPageTarget = ref<string[]>([])
+const openSetPageDialog = (peerIds: string | string[]) => {
+  const ids = Array.isArray(peerIds) ? peerIds : [peerIds]
+  if (!ids.length) {
+    MessagePlugin.warning('请选择目标设备')
+    return
+  }
+  setPageTarget.value = ids
+  // 取选中设备的当前场次和总场数作为默认值
+  const first = devices.value.find((d) => d.peerId === ids[0])
+  setPageValue.value = (first?.status?.currentExamIndex ?? 0) + 1
+  setPageTotal.value = first?.status?.totalExams ?? 0
+  setPageVisible.value = true
+}
+const confirmSetPage = async () => {
+  setPageVisible.value = false
+  const index = (setPageValue.value || 1) - 1
+  if (setPageTarget.value.length === 1) {
+    await sendOne(setPageTarget.value[0], { kind: 'switch', data: { index } })
+  } else {
+    await batchSend({ kind: 'switch', data: { index } })
+  }
 }
 
 // 紧急广播对话框
@@ -963,6 +1047,27 @@ void ipc
 }
 .cp-value {
   font-size: 14px;
+}
+.cp-value-mono {
+  font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+  font-weight: 600;
+  color: var(--td-brand-color);
+}
+.cp-value.ok {
+  color: var(--td-success-color);
+}
+.cp-value.err {
+  color: var(--td-error-color);
+}
+.cp-setpage-hint {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  line-height: 1.6;
+}
+.cp-setpage-total {
+  font-size: 12px;
+  color: var(--td-text-color-secondary);
+  margin-top: 8px;
 }
 .cp-section-title {
   font-size: 13px;

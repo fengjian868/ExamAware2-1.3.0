@@ -8,6 +8,7 @@ import { createSettingsWindow } from './windows/settingsWindow'
 import { createPlayerWindow } from './windows/playerWindow'
 import { windowManager } from './windows/windowManager'
 import { registerIpcHandlers } from './ipcHandlers'
+import { disposeControlController } from './ipc/controlController'
 import { patchConsoleWithLogger, appLogger, initLoggingConfig } from './logging/winstonLogger'
 import { flushWrite } from './configStore'
 import { registerTimeSyncHandlers } from './ipcHandlers/timeServiceHandler'
@@ -442,6 +443,9 @@ app.whenReady().then(async () => {
   // optional: clean up on quit
   app.on('before-quit', () => {
     ;(app as any).isQuitting = true
+    try {
+      disposeControlController()
+    } catch {}
     try {
       disposeTimeIpc()
     } catch {}

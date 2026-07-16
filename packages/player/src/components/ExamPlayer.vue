@@ -792,14 +792,32 @@ const handleCloseNotice = () => reminder.closeCurrentNotice('manual');
 // 供宿主（desktop PlayerView）桥接 player:control / player:status-report IPC。
 // player 包本身不依赖 electron IPC，只暴露纯方法。
 
-const getStatusSnapshot = () => ({
-  playing: Boolean(playerExamConfig.value?.examInfos?.length),
-  examName: playerExamConfig.value?.examName || '',
-  examStatus: (examStatus.value?.status ?? 'pending') as 'pending' | 'inProgress' | 'completed',
-  currentExam: currentExam.value?.name || '',
-  roomNumber: effectiveRoomNumber.value || '',
-  configLoaded: Boolean(state.value?.loaded)
-});
+const getStatusSnapshot = () => {
+  const exam = currentExam.value;
+  const list = sortedExamInfos.value || [];
+  let examStart: number | undefined;
+  let examEnd: number | undefined;
+  if (exam) {
+    const s = new Date(exam.start).getTime();
+    const e = new Date(exam.end).getTime();
+    if (!Number.isNaN(s)) examStart = s;
+    if (!Number.isNaN(e)) examEnd = e;
+  }
+  return {
+    playing: Boolean(playerExamConfig.value?.examInfos?.length),
+    examName: playerExamConfig.value?.examName || '',
+    examStatus: (examStatus.value?.status ?? 'pending') as 'pending' | 'inProgress' | 'completed',
+    currentExam: exam?.name || '',
+    roomNumber: effectiveRoomNumber.value || '',
+    configLoaded: Boolean(state.value?.loaded),
+    currentExamIndex: state.value?.currentExamIndex ?? 0,
+    totalExams: list.length,
+    remainingTime: remainingTime.value || '',
+    examStart,
+    examEnd,
+    playerOpened: true
+  };
+};
 
 // 状态变化时通知宿主上报
 watch(
@@ -807,7 +825,9 @@ watch(
     examStatus.value?.status,
     currentExam.value?.name,
     effectiveRoomNumber.value,
-    state.value?.loaded
+    state.value?.loaded,
+    state.value?.currentExamIndex,
+    remainingTime.value
   ],
   () => {
     emit('statusUpdate', getStatusSnapshot());
@@ -822,10 +842,16 @@ const executeControl = async (
 ): Promise<{ ok: boolean; error?: string }> => {
   try {
     if (kind === 'switch') {
-      const dir = data?.direction;
-      const cur = state.value?.currentExamIndex ?? 0;
       const list = sortedExamInfos.value || [];
-      const target = dir === 'prev' ? Math.max(0, cur - 1) : Math.min(list.length - 1, cur + 1);
+      // 优先使用 index 直接跳转，否则用 direction 相对切换
+      let target: number;
+      if (typeof data?.index === 'number') {
+        target = Math.max(0, Math.min(list.length - 1, Math.floor(data.index)));
+      } else {
+        const dir = data?.direction;
+        const cur = state.value?.currentExamIndex ?? 0;
+        target = dir === 'prev' ? Math.max(0, cur - 1) : Math.min(list.length - 1, cur + 1);
+      }
       const ok = switchToExam(target);
       return ok ? { ok: true } : { ok: false, error: '无法切换' };
     }

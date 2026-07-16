@@ -94,6 +94,7 @@ export class ControlClientManager {
     this.started = true
     this.refreshDiscovery()
     this.discoveryTimer = setInterval(() => this.refreshDiscovery(), DISCOVERY_REFRESH_MS)
+    this.discoveryTimer.unref?.()
     appLogger.info('[control-client] 已启动')
   }
 
@@ -218,6 +219,7 @@ export class ControlClientManager {
         } catch {}
       }
     }, HEARTBEAT_INTERVAL_MS)
+    conn.heartbeatTimer.unref?.()
   }
 
   private handleMessage(conn: DeviceConnection, raw: unknown) {

@@ -42,7 +42,9 @@ export interface PushConfigCommandData {
 }
 
 export interface SwitchCommandData {
-  direction: 'next' | 'prev'
+  direction?: 'next' | 'prev'
+  /** 直接跳转到指定场次索引（优先于 direction） */
+  index?: number
 }
 
 export interface AlertCommandData {
@@ -80,6 +82,18 @@ export interface DeviceStatus {
   /** 设备发送时的 Date.now()，控制端收到时相减得时钟偏移 */
   now: number
   configLoaded: boolean
+  /** 当前考试索引（第几场，从 0 开始） */
+  currentExamIndex?: number
+  /** 考试总场数 */
+  totalExams?: number
+  /** 本场考试剩余时间文本（如 "01:23:45"） */
+  remainingTime?: string
+  /** 本场考试开始时间戳（ms） */
+  examStart?: number
+  /** 本场考试结束时间戳（ms） */
+  examEnd?: number
+  /** player 窗口是否已打开 */
+  playerOpened?: boolean
 }
 
 /** hello 帧的 data，比 state 多设备元信息 */
@@ -176,8 +190,10 @@ export function asPushConfigData(data: unknown): PushConfigCommandData | null {
 export function asSwitchData(data: unknown): SwitchCommandData | null {
   if (!data || typeof data !== 'object') return null
   const v = data as Record<string, unknown>
-  if (v.direction !== 'next' && v.direction !== 'prev') return null
-  return { direction: v.direction }
+  const index = typeof v.index === 'number' ? v.index : undefined
+  const direction = v.direction === 'next' || v.direction === 'prev' ? v.direction : undefined
+  if (index === undefined && direction === undefined) return null
+  return { direction, index }
 }
 
 export function asAlertData(data: unknown): AlertCommandData | null {
@@ -242,7 +258,13 @@ export function asDeviceStatus(data: unknown): DeviceStatus | null {
     currentExam: typeof v.currentExam === 'string' ? v.currentExam : '',
     roomNumber: typeof v.roomNumber === 'string' ? v.roomNumber : '',
     now: v.now,
-    configLoaded: typeof v.configLoaded === 'boolean' ? v.configLoaded : false
+    configLoaded: typeof v.configLoaded === 'boolean' ? v.configLoaded : false,
+    currentExamIndex: typeof v.currentExamIndex === 'number' ? v.currentExamIndex : undefined,
+    totalExams: typeof v.totalExams === 'number' ? v.totalExams : undefined,
+    remainingTime: typeof v.remainingTime === 'string' ? v.remainingTime : undefined,
+    examStart: typeof v.examStart === 'number' ? v.examStart : undefined,
+    examEnd: typeof v.examEnd === 'number' ? v.examEnd : undefined,
+    playerOpened: typeof v.playerOpened === 'boolean' ? v.playerOpened : undefined
   }
 }
 

@@ -34,6 +34,15 @@ function broadcastToControlWindow(channel: string, payload: unknown) {
   }
 }
 
+/** 卸载 ControlClientManager（退出时调用，清理所有定时器与 WS 连接） */
+export function disposeControlController() {
+  if (manager) {
+    manager.stop()
+    manager = null
+    appLogger.info('[control-controller] ControlClientManager 已卸载')
+  }
+}
+
 export class ControlController {
   @IpcHandle('control:list-devices')
   listDevices(): ControlDevice[] {
