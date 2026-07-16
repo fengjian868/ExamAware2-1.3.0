@@ -140,12 +140,20 @@ const api = {
   control: {
     listDevices: () => ipcRenderer.invoke('control:list-devices'),
     refreshDiscovery: () => ipcRenderer.invoke('control:refresh-discovery'),
-    sendCommand: (peerIds: string[], command: any) =>
-      ipcRenderer.invoke('control:send-command', { peerIds, command }),
+    sendCommand: (peerIds: string[], command: any) => {
+      // 深拷贝去除 Vue 响应式 Proxy，否则 IPC structured clone 会报
+      // "An object could not be cloned"
+      const plain = JSON.parse(JSON.stringify({ peerIds, command }))
+      return ipcRenderer.invoke('control:send-command', plain)
+    },
     pushConfigFile: (peerIds: string[], config: string) =>
-      ipcRenderer.invoke('control:push-config', { peerIds, config }),
+      ipcRenderer.invoke('control:push-config', {
+        peerIds: JSON.parse(JSON.stringify(peerIds)),
+        config
+      }),
     getConfig: () => ipcRenderer.invoke('control:get-config'),
-    setConfig: (partial: any) => ipcRenderer.invoke('control:set-config', partial),
+    setConfig: (partial: any) =>
+      ipcRenderer.invoke('control:set-config', JSON.parse(JSON.stringify(partial))),
     onDevices: (listener: (devices: any[]) => void) => {
       const wrapped = (_event: Electron.IpcRendererEvent, devices: any[]) => listener(devices)
       ipcRenderer.on('control:devices', wrapped)
