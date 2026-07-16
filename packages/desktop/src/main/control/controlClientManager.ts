@@ -309,13 +309,16 @@ export class ControlClientManager {
     }
     const id = generateCommandId()
     const frame = buildCommand(id, command)
+    // 截图类命令耗时较长，给更长超时
+    const timeoutMs =
+      command.kind === 'captureScreen' ? 30000 : command.kind === 'listScreens' ? 15000 : 10000
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         conn.pending.delete(id)
         const result = { ok: false, error: '响应超时' }
         resolve(result)
         this.callbacks.onCommandResult(peerId, id, result)
-      }, 10000)
+      }, timeoutMs)
       conn.pending.set(id, { id, kind: command.kind, resolve, timer })
       try {
         conn.ws.send(encodeFrame(frame))

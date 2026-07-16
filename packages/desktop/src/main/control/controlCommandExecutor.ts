@@ -103,6 +103,9 @@ export class ControlCommandExecutor {
       setSharedConfig(payload.config)
       // forceRecreate=true：若 player 已存在则销毁重开，确保加载新配置
       createPlayerWindow(file, true)
+      // 等待 player 窗口创建完成（不等配置加载完毕，但确保窗口存在），
+      // 避免控制端立即发 switch/end 等命令时报"播放器未运行"
+      await this.waitForPlayerReady(5000)
       appLogger.info('[control] pushConfig 已创建 player 窗口', { autoPlay: payload.autoPlay })
       return { ok: true }
     } catch (err) {
@@ -213,10 +216,23 @@ export class ControlCommandExecutor {
       await fs.promises.writeFile(file, config, 'utf-8')
       createPlayerWindow(file)
       appLogger.info('[control] openPlayer 已创建 player 窗口')
+      await this.waitForPlayerReady(5000)
       return { ok: true }
     } catch (err) {
       appLogger.error('[control] openPlayer failed', err as Error)
       return { ok: false, error: err instanceof Error ? err.message : '打开失败' }
+    }
+  }
+
+  /** 等待 player 窗口创建并加载 DOM（轮询 webContents 是否可用） */
+  private async waitForPlayerReady(timeoutMs: number): Promise<void> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      const win = windowManager.get(PLAYER_ID)
+      if (win && !win.isDestroyed() && !win.webContents.isLoading()) {
+        return
+      }
+      await new Promise((r) => setTimeout(r, 200))
     }
   }
 

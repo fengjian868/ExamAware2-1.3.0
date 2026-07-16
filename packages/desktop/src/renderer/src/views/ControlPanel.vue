@@ -401,14 +401,20 @@ const refresh = async () => {
 // 单台发送命令
 const sendOne = async (peerId: string, command: any) => {
   pushLog(`→ ${deviceName(peerId)}：${command.kind}`)
-  const res = await api.sendCommand([peerId], command)
-  const r = res?.[0]
-  const ok = !!r?.result?.ok
-  pushLog(
-    `${deviceName(peerId)} ${command.kind} ${ok ? '成功' : '失败：' + (r?.result?.error || '')}`,
-    ok
-  )
-  return r
+  try {
+    const res = await api.sendCommand([peerId], command)
+    const r = res?.[0]
+    const ok = !!r?.result?.ok
+    pushLog(
+      `${deviceName(peerId)} ${command.kind} ${ok ? '成功' : '失败：' + (r?.result?.error || '')}`,
+      ok
+    )
+    return r
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '发送异常'
+    pushLog(`${deviceName(peerId)} ${command.kind} 异常：${msg}`, false)
+    MessagePlugin.error(msg)
+  }
 }
 
 // 批量发送命令
@@ -420,11 +426,18 @@ const batchSend = async (command: any) => {
   batchResults.value = []
   batchProgress.value = { total: checkedIds.value.length, done: 0 }
   pushLog(`批量 ${command.kind} → ${checkedIds.value.length} 台`)
-  const res = await api.sendCommand(checkedIds.value, command)
-  batchResults.value = res || []
-  batchProgress.value = { total: checkedIds.value.length, done: batchResults.value.length }
-  const okCount = batchResults.value.filter((r) => r.result.ok).length
-  pushLog(`批量 ${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
+  try {
+    const res = await api.sendCommand(checkedIds.value, command)
+    batchResults.value = res || []
+    batchProgress.value = { total: checkedIds.value.length, done: batchResults.value.length }
+    const okCount = batchResults.value.filter((r) => r.result.ok).length
+    pushLog(`批量 ${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '批量发送异常'
+    pushLog(`批量 ${command.kind} 异常：${msg}`, false)
+    MessagePlugin.error(msg)
+    batchProgress.value = { total: 0, done: 0 }
+  }
 }
 
 // 切场：单台弹选择
@@ -453,11 +466,18 @@ const pickAndPushConfig = async (peerIds: string[]) => {
   batchResults.value = []
   batchProgress.value = { total: peerIds.length, done: 0 }
   pushLog(`推送档案 → ${peerIds.length} 台`)
-  const res = await api.pushConfigFile(peerIds, config)
-  batchResults.value = res || []
-  batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
-  const okCount = batchResults.value.filter((r) => r.result.ok).length
-  pushLog(`推送档案完成：${okCount}/${batchResults.value.length} 成功`)
+  try {
+    const res = await api.pushConfigFile(peerIds, config)
+    batchResults.value = res || []
+    batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
+    const okCount = batchResults.value.filter((r) => r.result.ok).length
+    pushLog(`推送档案完成：${okCount}/${batchResults.value.length} 成功`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '推送档案异常'
+    pushLog(`推送档案异常：${msg}`, false)
+    MessagePlugin.error(msg)
+    batchProgress.value = { total: 0, done: 0 }
+  }
 }
 
 // 提醒对话框
@@ -548,7 +568,8 @@ const openPreview = async (peerId: string) => {
   previewScreens.value = []
   previewScreenId.value = 0
   previewVisible.value = true
-  // 先列屏（被控端可能多屏）
+  previewLoading.value = true
+  // 先列屏（被控端可能多屏），失败不阻塞截图
   try {
     const res = await api.sendCommand([peerId], { kind: 'listScreens' })
     const r = res?.[0]?.result as any
@@ -740,6 +761,10 @@ const executePreset = async () => {
       }
     }
     pushLog('预设执行完毕')
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '预设执行异常'
+    pushLog(`预设执行异常：${msg}`, false)
+    MessagePlugin.error(msg)
   } finally {
     presetRunning.value = false
   }
