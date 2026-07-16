@@ -18,6 +18,7 @@ export type ControlMessageKind =
   | 'setRoom'
   | 'broadcast'
   | 'exit'
+  | 'openPlayer'
 
 /** WS 帧顶层结构 */
 export interface ControlFrame {

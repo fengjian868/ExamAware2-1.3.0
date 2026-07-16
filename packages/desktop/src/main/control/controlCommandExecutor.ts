@@ -9,7 +9,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { windowManager } from '../windows/windowManager'
 import { createPlayerWindow } from '../windows/playerWindow'
-import { setSharedConfig } from '../state/sharedConfigStore'
+import { setSharedConfig, getSharedConfig } from '../state/sharedConfigStore'
 import { appLogger } from '../logging/winstonLogger'
 import {
   asPushConfigData,
@@ -71,6 +71,8 @@ export class ControlCommandExecutor {
           return await this.executeViaRenderer('exit', command.data)
         case 'broadcast':
           return await this.executeBroadcast(command.data)
+        case 'openPlayer':
+          return await this.executeOpenPlayer()
         default:
           return { ok: false, error: `未知命令: ${command.kind}` }
       }
@@ -155,6 +157,34 @@ export class ControlCommandExecutor {
     })
     appLogger.info('[control] broadcast 已下发', { title: payload.title })
     return { ok: true }
+  }
+
+  /** openPlayer：让被控端打开播放器。已有则聚焦，否则用已存档案重开 */
+  private async executeOpenPlayer(): Promise<CommandResultData> {
+    const existing = windowManager.get(PLAYER_ID)
+    if (existing && !existing.isDestroyed()) {
+      try {
+        if (existing.isMinimized()) existing.restore()
+        existing.focus()
+      } catch {}
+      return { ok: true }
+    }
+    const config = getSharedConfig()
+    if (!config || !config.trim()) {
+      return { ok: false, error: '被控端无可用档案，请先推送档案' }
+    }
+    try {
+      const dir = path.join(app.getPath('temp'), 'examaware-control')
+      await fs.promises.mkdir(dir, { recursive: true })
+      const file = path.join(dir, `open-${Date.now()}-${Math.random().toString(16).slice(2)}.ea2`)
+      await fs.promises.writeFile(file, config, 'utf-8')
+      createPlayerWindow(file)
+      appLogger.info('[control] openPlayer 已创建 player 窗口')
+      return { ok: true }
+    } catch (err) {
+      appLogger.error('[control] openPlayer failed', err as Error)
+      return { ok: false, error: err instanceof Error ? err.message : '打开失败' }
+    }
   }
 
   /**

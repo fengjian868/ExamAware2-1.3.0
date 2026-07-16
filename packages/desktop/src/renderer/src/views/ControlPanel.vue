@@ -92,6 +92,9 @@
           <div class="cp-section-title">快捷操作</div>
           <div class="cp-actions">
             <t-button size="small" @click="pickAndPushConfig([selected.peerId])">推送档案</t-button>
+            <t-button size="small" @click="sendOne(selected.peerId, { kind: 'openPlayer' })"
+              >打开播放器</t-button
+            >
             <t-button size="small" @click="quickSwitch(selected.peerId)">切场</t-button>
             <t-button
               size="small"
@@ -134,6 +137,7 @@
         </div>
         <div class="cp-batch-actions">
           <t-button block @click="pickAndPushConfig(checkedIds)">推送档案</t-button>
+          <t-button block @click="batchSend({ kind: 'openPlayer' })">全部打开播放器</t-button>
           <t-button block @click="batchSend({ kind: 'switch', data: { direction: 'next' } })"
             >全部切下一场</t-button
           >
