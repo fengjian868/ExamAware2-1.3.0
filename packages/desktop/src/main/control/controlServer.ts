@@ -25,11 +25,14 @@ import {
 } from './controlProtocol'
 
 const HEARTBEAT_TIMEOUT_MS = 15000
+/** 服务端主动 ping 间隔，ws 库会自动回 pong */
+const SERVER_PING_INTERVAL_MS = 5000
 
 export class ControlServer {
   private wss: WebSocketServer | null = null
   private clients = new Set<WebSocket>()
   private heartbeatTimers = new WeakMap<WebSocket, NodeJS.Timeout>()
+  private pingTimers = new WeakMap<WebSocket, NodeJS.Timeout>()
   private executor: ControlCommandExecutor
 
   constructor(executor: ControlCommandExecutor) {
@@ -82,8 +85,17 @@ export class ControlServer {
       }, HEARTBEAT_TIMEOUT_MS)
       this.heartbeatTimers.set(ws, timer)
     }
-    // ws pong 作为存活信号
+    // ws pong 作为存活信号（服务端主动 ping 时客户端自动回 pong）
     ws.on('pong', reset)
+    // 主动发 WS-level ping，ws 库自动回 pong → 触发上面的 reset
+    const pingTimer = setInterval(() => {
+      try {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.ping()
+        }
+      } catch {}
+    }, SERVER_PING_INTERVAL_MS)
+    this.pingTimers.set(ws, pingTimer)
     reset()
   }
 
@@ -91,10 +103,25 @@ export class ControlServer {
     this.clients.delete(ws)
     const timer = this.heartbeatTimers.get(ws)
     if (timer) clearTimeout(timer)
+    const pingTimer = this.pingTimers.get(ws)
+    if (pingTimer) clearInterval(pingTimer)
+    this.pingTimers.delete(ws)
     appLogger.info('[control] 控制端断开', { total: this.clients.size })
   }
 
   private async handleMessage(ws: WebSocket, raw: unknown) {
+    // 任何消息（含 heartbeat 帧）都重置心跳超时，避免误断
+    let timer = this.heartbeatTimers.get(ws)
+    if (timer) {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        appLogger.warn('[control] 心跳超时，断开控制端')
+        try {
+          ws.terminate()
+        } catch {}
+      }, HEARTBEAT_TIMEOUT_MS)
+      this.heartbeatTimers.set(ws, timer)
+    }
     const frame = decodeFrame(raw as string | Buffer)
     if (!frame) return
     if (frame.t === 'command') {

@@ -15,7 +15,15 @@
     <div class="cp-body">
       <!-- 左栏：设备列表 -->
       <aside class="cp-left">
-        <div class="cp-left-head">设备列表</div>
+        <div class="cp-left-head">
+          <span>设备列表</span>
+          <t-checkbox
+            :checked="allChecked"
+            :indeterminate="someChecked && !allChecked"
+            @change="(v) => toggleAll(v as boolean)"
+            >全选</t-checkbox
+          >
+        </div>
         <t-empty v-if="!filteredDevices.length" size="small" description="暂无设备" />
         <div v-else class="cp-device-list">
           <div
@@ -361,6 +369,22 @@ const toggleCheck = (id: string, checked: boolean) => {
     if (!checkedIds.value.includes(id)) checkedIds.value.push(id)
   } else {
     checkedIds.value = checkedIds.value.filter((x) => x !== id)
+  }
+}
+
+const allChecked = computed(
+  () =>
+    filteredDevices.value.length > 0 &&
+    filteredDevices.value.every((d) => checkedIds.value.includes(d.peerId))
+)
+const someChecked = computed(() =>
+  filteredDevices.value.some((d) => checkedIds.value.includes(d.peerId))
+)
+const toggleAll = (checked: boolean) => {
+  if (checked) {
+    checkedIds.value = filteredDevices.value.map((d) => d.peerId)
+  } else {
+    checkedIds.value = []
   }
 }
 
@@ -833,6 +857,9 @@ void ipc
   font-weight: 600;
   color: var(--td-text-color-secondary);
   border-bottom: 1px solid var(--td-border-level-1-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .cp-device-list {
   flex: 1;
