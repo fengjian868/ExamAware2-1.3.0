@@ -1,6 +1,7 @@
 import type { App } from 'vue'
 import type { AppModule } from '../types'
 import { DisposerGroup } from '@renderer/runtime/disposable'
+import { MessagePlugin } from 'tdesign-vue-next'
 
 export interface HomeButtonMeta {
   id: string
@@ -134,7 +135,15 @@ export const homeButtonsModule: AppModule = {
       icon: 'control-platform',
       theme: 'primary',
       order: 4,
-      action: () => {
+      action: async () => {
+        // 被控端不可使用集控面板，需先在设置中切换为主控端
+        const role = await window.api.config.get('control.role', 'controlled')
+        if (role !== 'controller') {
+          MessagePlugin.warning(
+            '当前为被控端，无法使用集控。请先在「设置-共享与投送」中切换为主控端。'
+          )
+          return
+        }
         // 打开集控面板窗口（深链 examaware://control）
         window.api?.ipc?.send('open-control-window')
       }

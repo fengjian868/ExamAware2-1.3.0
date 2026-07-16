@@ -5,6 +5,26 @@
       <t-card :title="'共享与投送'" theme="poster2" :loading="loading || applying">
         <div class="settings-item">
           <div class="settings-item-icon">
+            <TIcon name="control-platform" size="22px" />
+          </div>
+          <div class="settings-item-main">
+            <div class="settings-item-title">本机角色</div>
+            <div class="settings-item-desc">
+              被控端：可被主控端远程管理；主控端：集中管理局域网内被控端。默认为被控端。
+            </div>
+          </div>
+          <div class="settings-item-action">
+            <t-radio-group v-model="form.role" variant="default-filled" size="small">
+              <t-radio value="controlled">被控端</t-radio>
+              <t-radio value="controller">主控端</t-radio>
+            </t-radio-group>
+          </div>
+        </div>
+
+        <t-divider />
+
+        <div class="settings-item">
+          <div class="settings-item-icon">
             <TIcon name="share" size="22px" />
           </div>
           <div class="settings-item-main">
@@ -132,17 +152,20 @@ interface CastConfig {
   shareEnabled: boolean
 }
 
+type ControlRole = 'controlled' | 'controller'
+
 const loading = ref(false)
 const applying = ref(false)
 const hydrated = ref(false)
 const suppressWatch = ref(false)
 let applyTimer: ReturnType<typeof setTimeout> | null = null
 
-const form = reactive<CastConfig>({
+const form = reactive<CastConfig & { role: ControlRole }>({
   enabled: false,
   name: 'ExamAware',
   port: 31235,
-  shareEnabled: false
+  shareEnabled: false,
+  role: 'controlled'
 })
 
 const baseUrl = computed(() => `http://127.0.0.1:${form.port || 0}`)
@@ -152,11 +175,13 @@ async function load() {
   loading.value = true
   try {
     const cfg = (await window.api.cast.getConfig()) as CastConfig
+    const savedRole = (await window.api.config.get('control.role', 'controlled')) as ControlRole
     suppressWatch.value = true
     form.enabled = !!cfg?.enabled
     form.name = cfg?.name || 'ExamAware'
     form.port = Number(cfg?.port) || 31235
     form.shareEnabled = !!cfg?.shareEnabled
+    form.role = savedRole === 'controller' ? 'controller' : 'controlled'
     hydrated.value = true
   } catch (err) {
     MessagePlugin.error('加载共享与投送配置失败')
@@ -170,6 +195,8 @@ async function applyConfig() {
   if (!hydrated.value) return
   applying.value = true
   try {
+    // 角色单独存到 control.role，供首页集控按钮判断
+    await window.api.config.set('control.role', form.role)
     const cfg = (await window.api.cast.setConfig({
       enabled: form.enabled,
       name: form.name?.trim() || 'ExamAware',

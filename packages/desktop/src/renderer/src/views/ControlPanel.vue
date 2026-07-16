@@ -2,15 +2,8 @@
   <div class="control-panel">
     <!-- 顶栏 -->
     <header class="cp-header" :class="`cp-header--${platform}`">
-      <div class="cp-title">
-        集控面板
-        <t-tag theme="primary" variant="light" size="small">本机：主控端</t-tag>
-      </div>
+      <div class="cp-title">集控面板</div>
       <div class="cp-header-actions">
-        <div class="cp-role-toggle">
-          <span class="cp-role-label">允许被控</span>
-          <t-switch v-model="beControlled" size="small" @change="onBeControlledChange" />
-        </div>
         <t-button variant="outline" size="small" :loading="refreshing" @click="refresh">
           刷新发现
         </t-button>
@@ -247,28 +240,6 @@ const onlyOnline = ref(false)
 const refreshing = ref(false)
 const logs = ref<Array<{ time: string; text: string; ok: boolean }>>([])
 const batchResults = ref<Array<{ peerId: string; result: { ok: boolean; error?: string } }>>([])
-// 本机是否允许被控（联动 cast.enabled）
-const beControlled = ref(false)
-
-const loadCastConfig = async () => {
-  try {
-    const cfg = await window.api.cast.getConfig()
-    beControlled.value = !!cfg?.enabled
-  } catch (e: any) {
-    console.warn('[control] 读取投屏配置失败', e)
-  }
-}
-
-const onBeControlledChange = async (val: boolean | string | number) => {
-  const enabled = !!val
-  try {
-    await window.api.cast.setConfig({ enabled })
-    pushLog(`本机被控已${enabled ? '开启' : '关闭'}`)
-  } catch (e: any) {
-    pushLog(`切换被控失败：${e?.message || e}`, false)
-    beControlled.value = !enabled
-  }
-}
 
 const selected = computed(() => devices.value.find((d) => d.peerId === selectedId.value) || null)
 const onlineCount = computed(() => devices.value.filter((d) => d.online).length)
@@ -444,7 +415,6 @@ let unsubResult: (() => void) | null = null
 
 onMounted(async () => {
   devices.value = await api.listDevices()
-  loadCastConfig()
   unsubDevices = api.onDevices((list) => {
     devices.value = list
   })
@@ -495,18 +465,6 @@ void ipc
 .cp-title {
   font-size: 18px;
   font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cp-role-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.cp-role-label {
-  font-size: 13px;
-  color: var(--td-text-color-secondary);
 }
 .cp-header-actions {
   display: flex;
