@@ -2,19 +2,49 @@
   <div class="settings-page">
     <h2>共享与投送</h2>
     <t-space direction="vertical" size="small" style="width: 100%">
-      <t-card :title="'共享与投送'" theme="poster2" :loading="loading || applying">
+      <!-- 集控独立卡片 -->
+      <t-card :title="'集控'" theme="poster2" :loading="loading || applying">
         <div class="settings-item">
           <div class="settings-item-icon">
             <TIcon name="control-platform" size="22px" />
           </div>
           <div class="settings-item-main">
-            <div class="settings-item-title">本机角色</div>
+            <div class="settings-item-title">启用集控</div>
             <div class="settings-item-desc">
-              被控端：可被主控端远程管理；主控端：集中管理局域网内被控端。默认为被控端。
+              独立于共享与投送。被控端将广播本机供主控端管理；主控端将发现并管理局域网被控端。
             </div>
           </div>
           <div class="settings-item-action">
-            <t-radio-group v-model="form.role" variant="default-filled" size="small">
+            <t-switch
+              v-model="controlForm.enabled"
+              :label="[
+                { value: true, label: '开' },
+                { value: false, label: '关' }
+              ]"
+            />
+          </div>
+        </div>
+
+        <t-divider />
+
+        <div class="settings-item">
+          <div class="settings-item-icon">
+            <TIcon name="user" size="22px" />
+          </div>
+          <div class="settings-item-main">
+            <div class="settings-item-title">本机角色</div>
+            <div class="settings-item-desc">
+              <span v-if="controlForm.role === 'controlled'">将广播本机供主控端远程管理。</span>
+              <span v-else>将发现并管理局域网内被控端。</span>
+            </div>
+          </div>
+          <div class="settings-item-action">
+            <t-radio-group
+              v-model="controlForm.role"
+              variant="default-filled"
+              size="small"
+              :disabled="!controlForm.enabled"
+            >
               <t-radio value="controlled">被控端</t-radio>
               <t-radio value="controller">主控端</t-radio>
             </t-radio-group>
@@ -23,6 +53,28 @@
 
         <t-divider />
 
+        <div class="settings-item">
+          <div class="settings-item-icon">
+            <TIcon name="edit-1" size="22px" />
+          </div>
+          <div class="settings-item-main">
+            <div class="settings-item-title">设备名称</div>
+            <div class="settings-item-desc">
+              主控端列表中显示的名称，留空则用主机名。最多 32 字符。
+            </div>
+          </div>
+          <div class="settings-item-action" style="display: flex; align-items: center; gap: 8px">
+            <t-input
+              v-model="controlForm.deviceName"
+              :disabled="!controlForm.enabled"
+              placeholder="如：考场01主机"
+              maxlength="32"
+            />
+          </div>
+        </div>
+      </t-card>
+
+      <t-card :title="'共享与投送'" theme="poster2" :loading="loading || applying">
         <div class="settings-item">
           <div class="settings-item-icon">
             <TIcon name="share" size="22px" />
@@ -152,7 +204,11 @@ interface CastConfig {
   shareEnabled: boolean
 }
 
-type ControlRole = 'controlled' | 'controller'
+interface ControlConfig {
+  enabled: boolean
+  role: 'controlled' | 'controller'
+  deviceName: string
+}
 
 const loading = ref(false)
 const applying = ref(false)
@@ -160,12 +216,17 @@ const hydrated = ref(false)
 const suppressWatch = ref(false)
 let applyTimer: ReturnType<typeof setTimeout> | null = null
 
-const form = reactive<CastConfig & { role: ControlRole }>({
+const form = reactive<CastConfig>({
   enabled: false,
   name: 'ExamAware',
   port: 31235,
-  shareEnabled: false,
-  role: 'controlled'
+  shareEnabled: false
+})
+
+const controlForm = reactive<ControlConfig>({
+  enabled: false,
+  role: 'controlled',
+  deviceName: ''
 })
 
 const baseUrl = computed(() => `http://127.0.0.1:${form.port || 0}`)
@@ -175,16 +236,18 @@ async function load() {
   loading.value = true
   try {
     const cfg = (await window.api.cast.getConfig()) as CastConfig
-    const savedRole = (await window.api.config.get('control.role', 'controlled')) as ControlRole
+    const ctrlCfg = (await window.api.control.getConfig()) as ControlConfig
     suppressWatch.value = true
     form.enabled = !!cfg?.enabled
     form.name = cfg?.name || 'ExamAware'
     form.port = Number(cfg?.port) || 31235
     form.shareEnabled = !!cfg?.shareEnabled
-    form.role = savedRole === 'controller' ? 'controller' : 'controlled'
+    controlForm.enabled = !!ctrlCfg?.enabled
+    controlForm.role = ctrlCfg?.role === 'controller' ? 'controller' : 'controlled'
+    controlForm.deviceName = ctrlCfg?.deviceName || ''
     hydrated.value = true
   } catch (err) {
-    MessagePlugin.error('加载共享与投送配置失败')
+    MessagePlugin.error('加载配置失败')
   } finally {
     suppressWatch.value = false
     loading.value = false
@@ -195,8 +258,13 @@ async function applyConfig() {
   if (!hydrated.value) return
   applying.value = true
   try {
-    // 角色单独存到 control.role，供首页集控按钮判断
-    await window.api.config.set('control.role', form.role)
+    // 集控配置独立保存
+    await window.api.control.setConfig({
+      enabled: controlForm.enabled,
+      role: controlForm.role,
+      deviceName: controlForm.deviceName?.trim() || ''
+    })
+    // 共享投送配置
     const cfg = (await window.api.cast.setConfig({
       enabled: form.enabled,
       name: form.name?.trim() || 'ExamAware',
@@ -209,7 +277,7 @@ async function applyConfig() {
     form.port = Number(cfg?.port) || form.port
     form.shareEnabled = !!cfg?.shareEnabled
   } catch (err) {
-    MessagePlugin.error('保存共享与投送配置失败')
+    MessagePlugin.error('保存配置失败')
   } finally {
     suppressWatch.value = false
     applying.value = false
@@ -218,7 +286,7 @@ async function applyConfig() {
 }
 
 watch(
-  () => ({ ...form }),
+  () => ({ ...form, ...controlForm }),
   () => {
     if (!hydrated.value || suppressWatch.value) return
     if (applyTimer) clearTimeout(applyTimer)

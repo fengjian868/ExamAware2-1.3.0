@@ -5,7 +5,7 @@ import { windowManager } from './windowManager'
 import { appLogger } from '../logging/winstonLogger'
 import { setSharedConfig } from '../state/sharedConfigStore'
 
-export function createPlayerWindow(configPath: string): BrowserWindow {
+export function createPlayerWindow(configPath: string, forceRecreate = false): BrowserWindow {
   return windowManager.open(({ commonOptions }) => ({
     id: 'player',
     route: 'playerview',

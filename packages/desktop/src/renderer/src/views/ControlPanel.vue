@@ -31,15 +31,19 @@
               @change="(v) => toggleCheck(d.peerId, v as boolean)"
             />
             <div class="cp-device-main">
-              <div class="cp-device-name">
+              <div class="cp-device-name" :class="{ warn: clockOffsetWarn(d) }">
                 <span class="cp-dot" :class="{ on: d.online, conn: d.connecting }"></span>
                 {{ d.deviceName || d.peerId }}
               </div>
               <div class="cp-device-sub">
                 <span v-if="d.online && d.status">
                   {{ d.status.currentExam || '—' }} · {{ statusText(d.status.examStatus) }}
+                  <span class="cp-offset" :class="{ warn: clockOffsetWarn(d) }">
+                    · 偏移 {{ formatOffset(d.status.now) }}
+                  </span>
                 </span>
                 <span v-else-if="d.connecting">连接中…</span>
+                <span v-else-if="d.lastSeen">重连中…</span>
                 <span v-else>离线</span>
               </div>
             </div>
@@ -95,6 +99,9 @@
             <t-button size="small" @click="sendOne(selected.peerId, { kind: 'openPlayer' })"
               >打开播放器</t-button
             >
+            <t-button size="small" :loading="previewLoading" @click="openPreview(selected.peerId)"
+              >画面预览</t-button
+            >
             <t-button size="small" @click="quickSwitch(selected.peerId)">切场</t-button>
             <t-button
               size="small"
@@ -148,13 +155,52 @@
           <t-button block variant="dashed" @click="batchSend({ kind: 'exit' })">全部退出</t-button>
         </div>
         <div class="cp-batch-result">
-          <div v-if="!batchResults.length" class="cp-hint">批量回执将显示在此</div>
+          <div v-if="batchProgress.total > 0" class="cp-progress">
+            <t-progress
+              :percentage="Math.round((batchProgress.done / batchProgress.total) * 100)"
+              :label="`完成 ${batchProgress.done}/${batchProgress.total}`"
+              size="small"
+            />
+          </div>
+          <div v-if="!batchResults.length && batchProgress.total === 0" class="cp-hint">
+            批量回执将显示在此
+          </div>
           <div v-for="r in batchResults" :key="r.peerId" class="cp-result-row">
             <span class="cp-dot" :class="{ on: r.result.ok }"></span>
             <span class="cp-result-name">{{ deviceName(r.peerId) }}</span>
             <span class="cp-result-state" :class="{ ok: r.result.ok }">
               {{ r.result.ok ? '成功' : r.result.error || '失败' }}
             </span>
+          </div>
+        </div>
+
+        <!-- 操作预设 -->
+        <div class="cp-preset">
+          <div class="cp-preset-head">
+            <span>操作预设</span>
+            <t-button variant="text" size="small" @click="loadPresetFromFile">选档案</t-button>
+          </div>
+          <div v-if="!presetSteps.length" class="cp-hint" style="padding: 8px 16px">
+            选择 .ea2 档案加载预设
+          </div>
+          <div v-else class="cp-preset-steps">
+            <div v-for="(step, i) in presetSteps" :key="i" class="cp-preset-step">
+              <span class="cp-preset-idx">{{ i + 1 }}</span>
+              <span class="cp-preset-cmd">{{ presetStepLabel(step) }}</span>
+              <span v-if="step.delayMs" class="cp-preset-delay">等{{ step.delayMs / 1000 }}s</span>
+              <t-button variant="text" size="small" @click="removeStep(i)">删</t-button>
+            </div>
+          </div>
+          <div class="cp-preset-add" v-if="presetSteps.length">
+            <t-select v-model="newStepCommand" size="small" :options="stepOptions" />
+            <t-input-number v-model="newStepDelay" size="small" :min="0" :step="1000" />
+            <t-button size="small" @click="addStep">添加</t-button>
+          </div>
+          <div class="cp-preset-actions" v-if="presetSteps.length">
+            <t-button size="small" @click="savePresetToFile">保存到档案</t-button>
+            <t-button size="small" theme="primary" :loading="presetRunning" @click="executePreset"
+              >执行预设</t-button
+            >
           </div>
         </div>
       </aside>
@@ -203,6 +249,43 @@
         :autosize="{ minRows: 3 }"
         style="margin-top: 12px"
       />
+    </t-dialog>
+
+    <!-- 画面预览对话框 -->
+    <t-dialog
+      v-model:visible="previewVisible"
+      :header="`画面预览 - ${previewDeviceName}`"
+      :footer="false"
+      width="800px"
+    >
+      <div class="cp-preview-wrap">
+        <t-select
+          v-if="previewScreens.length > 1"
+          v-model="previewScreenId"
+          :options="previewScreens.map((s) => ({ label: s.name, value: s.id }))"
+          size="small"
+          style="margin-bottom: 12px; width: 200px"
+          @change="capturePreview"
+        />
+        <div v-if="previewLoading" class="cp-preview-loading">
+          <t-loading text="正在截图..." />
+        </div>
+        <img
+          v-else-if="previewImage"
+          :src="`data:image/jpeg;base64,${previewImage}`"
+          class="cp-preview-img"
+        />
+        <t-empty v-else description="点击下方按钮截图" />
+        <t-button
+          variant="outline"
+          size="small"
+          :loading="previewLoading"
+          style="margin-top: 12px"
+          @click="capturePreview"
+        >
+          {{ previewImage ? '刷新截图' : '截图' }}
+        </t-button>
+      </div>
     </t-dialog>
   </div>
 </template>
@@ -311,9 +394,11 @@ const batchSend = async (command: any) => {
     return
   }
   batchResults.value = []
+  batchProgress.value = { total: checkedIds.value.length, done: 0 }
   pushLog(`批量 ${command.kind} → ${checkedIds.value.length} 台`)
   const res = await api.sendCommand(checkedIds.value, command)
   batchResults.value = res || []
+  batchProgress.value = { total: checkedIds.value.length, done: batchResults.value.length }
   const okCount = batchResults.value.filter((r) => r.result.ok).length
   pushLog(`批量 ${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
 }
@@ -342,9 +427,11 @@ const pickAndPushConfig = async (peerIds: string[]) => {
     return
   }
   batchResults.value = []
+  batchProgress.value = { total: peerIds.length, done: 0 }
   pushLog(`推送档案 → ${peerIds.length} 台`)
   const res = await api.pushConfigFile(peerIds, config)
   batchResults.value = res || []
+  batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
   const okCount = batchResults.value.filter((r) => r.result.ok).length
   pushLog(`推送档案完成：${okCount}/${batchResults.value.length} 成功`)
 }
@@ -406,16 +493,239 @@ const confirmBroadcast = async () => {
 
 const batchSendTo = async (peerIds: string[], command: any) => {
   batchResults.value = []
+  batchProgress.value = { total: peerIds.length, done: 0 }
   pushLog(`${command.kind} → ${peerIds.length} 台`)
   const res = await api.sendCommand(peerIds, command)
   batchResults.value = res || []
+  batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
   const okCount = batchResults.value.filter((r) => r.result.ok).length
   pushLog(`${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
+}
+
+// 时钟偏移告警（功能 C）：偏移绝对值 > 2000ms 视为异常
+const clockOffsetWarn = (d: ControlDevice) => {
+  if (!d.online || !d.status || typeof d.status.now !== 'number') return false
+  return Math.abs(Date.now() - d.status.now) > 2000
+}
+
+// ===== 功能 D：画面预览（系统级截图，手动点按，支持选屏） =====
+const previewLoading = ref(false)
+const previewVisible = ref(false)
+const previewImage = ref('')
+const previewScreens = ref<Array<{ id: number; name: string }>>([])
+const previewScreenId = ref<number>(0)
+const previewDeviceName = ref('')
+let previewPeerId = ''
+
+const openPreview = async (peerId: string) => {
+  previewPeerId = peerId
+  previewDeviceName.value = deviceName(peerId)
+  previewImage.value = ''
+  previewScreens.value = []
+  previewScreenId.value = 0
+  previewVisible.value = true
+  // 先列屏（被控端可能多屏）
+  try {
+    const res = await api.sendCommand([peerId], { kind: 'listScreens' })
+    const r = res?.[0]?.result as any
+    if (r?.ok && Array.isArray(r.screens) && r.screens.length) {
+      previewScreens.value = r.screens
+      previewScreenId.value = r.screens[0].id
+    }
+  } catch {}
+  await capturePreview()
+}
+
+const capturePreview = async () => {
+  if (!previewPeerId) return
+  previewLoading.value = true
+  try {
+    const data: any =
+      previewScreens.value.length > 1 ? { displayId: previewScreenId.value } : undefined
+    const res = await api.sendCommand([previewPeerId], { kind: 'captureScreen', data })
+    const r = res?.[0]?.result as any
+    if (r?.ok && r.image) {
+      previewImage.value = r.image
+    } else {
+      MessagePlugin.error(r?.error || '截图失败')
+    }
+  } catch {
+    MessagePlugin.error('截图失败')
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+// ===== 功能 F：批量进度实时追踪 =====
+const batchProgress = ref<{ total: number; done: number }>({ total: 0, done: 0 })
+
+// ===== 功能 E：操作预设 / 一键流程 =====
+type PresetCommand =
+  | 'pushConfig'
+  | 'switch'
+  | 'end'
+  | 'alert'
+  | 'setRoom'
+  | 'broadcast'
+  | 'exit'
+  | 'openPlayer'
+interface PresetStep {
+  command: PresetCommand
+  data?: any
+  delayMs?: number
+}
+const presetSteps = ref<PresetStep[]>([])
+const newStepCommand = ref<PresetCommand>('openPlayer')
+const newStepDelay = ref(0)
+const presetRunning = ref(false)
+const currentPresetConfig = ref('')
+const presetConfigPath = ref('')
+
+const stepOptions = [
+  { label: '推送档案', value: 'pushConfig' },
+  { label: '打开播放器', value: 'openPlayer' },
+  { label: '切下一场', value: 'switch' },
+  { label: '结束当前', value: 'end' },
+  { label: '提醒', value: 'alert' },
+  { label: '改考场号', value: 'setRoom' },
+  { label: '广播', value: 'broadcast' },
+  { label: '退出', value: 'exit' }
+]
+
+const loadPresetFromFile = async () => {
+  const filePath = await window.api.openFileDialog({
+    title: '选择考试档案',
+    filters: [{ name: '考试档案', extensions: ['ea2', 'json'] }],
+    properties: ['openFile']
+  })
+  if (!filePath) return
+  const config = await window.api.readFile(filePath)
+  if (!config) {
+    MessagePlugin.error('读取档案失败')
+    return
+  }
+  presetConfigPath.value = filePath
+  currentPresetConfig.value = config
+  try {
+    const obj = JSON.parse(config)
+    presetSteps.value = obj?.controlPreset?.steps ? [...obj.controlPreset.steps] : []
+    if (!presetSteps.value.length) {
+      MessagePlugin.info('档案未含预设，可手动添加步骤后保存')
+    }
+  } catch {
+    MessagePlugin.error('解析档案失败')
+    presetSteps.value = []
+  }
+}
+
+const presetStepLabel = (step: PresetStep) => {
+  switch (step.command) {
+    case 'pushConfig':
+      return '推送档案'
+    case 'openPlayer':
+      return '打开播放器'
+    case 'switch':
+      return step.data?.direction === 'prev' ? '切上一场' : '切下一场'
+    case 'end':
+      return '结束当前'
+    case 'alert':
+      return '提醒' + (step.data?.title ? `：${step.data.title}` : '')
+    case 'setRoom':
+      return '改考场号' + (step.data?.room ? `：${step.data.room}` : '')
+    case 'broadcast':
+      return '广播' + (step.data?.title ? `：${step.data.title}` : '')
+    case 'exit':
+      return '退出'
+    default:
+      return String(step.command)
+  }
+}
+
+const addStep = () => {
+  const cmd = newStepCommand.value
+  const step: PresetStep = { command: cmd }
+  if (cmd === 'switch') step.data = { direction: 'next' }
+  else if (cmd === 'alert') step.data = { title: '请注意考场纪律' }
+  else if (cmd === 'setRoom') step.data = { room: '' }
+  else if (cmd === 'broadcast') step.data = { title: '通知', body: '' }
+  else if (cmd === 'pushConfig') step.data = { config: currentPresetConfig.value }
+  if (newStepDelay.value > 0) step.delayMs = newStepDelay.value
+  presetSteps.value.push(step)
+  newStepDelay.value = 0
+}
+
+const removeStep = (i: number) => {
+  presetSteps.value.splice(i, 1)
+}
+
+const savePresetToFile = async () => {
+  if (!presetConfigPath.value) {
+    MessagePlugin.warning('请先选择档案')
+    return
+  }
+  const config = await window.api.readFile(presetConfigPath.value)
+  if (!config) {
+    MessagePlugin.error('读取原档案失败')
+    return
+  }
+  try {
+    const obj = JSON.parse(config)
+    obj.controlPreset = { steps: presetSteps.value }
+    const newContent = JSON.stringify(obj, null, 2)
+    await window.api.saveFile(presetConfigPath.value, newContent)
+    currentPresetConfig.value = newContent
+    MessagePlugin.success('已保存到档案')
+  } catch {
+    MessagePlugin.error('保存档案失败')
+  }
+}
+
+const executePreset = async () => {
+  if (!checkedIds.value.length) {
+    MessagePlugin.warning('请先勾选设备')
+    return
+  }
+  if (!presetSteps.value.length) {
+    MessagePlugin.warning('预设为空')
+    return
+  }
+  presetRunning.value = true
+  batchResults.value = []
+  pushLog(`执行预设 → ${checkedIds.value.length} 台，共 ${presetSteps.value.length} 步`)
+  try {
+    for (const step of presetSteps.value) {
+      const command: any = { kind: step.command }
+      if (step.command === 'pushConfig') {
+        command.data = { config: currentPresetConfig.value, autoPlay: true }
+      } else if (step.data !== undefined) {
+        command.data = step.data
+      }
+      pushLog(`预设步骤：${presetStepLabel(step)}`)
+      batchProgress.value = { total: checkedIds.value.length, done: 0 }
+      const res = await api.sendCommand(checkedIds.value, command)
+      batchResults.value = res || []
+      batchProgress.value = {
+        total: checkedIds.value.length,
+        done: batchResults.value.length
+      }
+      const okCount = batchResults.value.filter((r) => r.result.ok).length
+      pushLog(`步骤完成：${okCount}/${batchResults.value.length} 成功`)
+      if (step.delayMs && step.delayMs > 0) {
+        pushLog(`等待 ${step.delayMs / 1000}s…`)
+        await new Promise((r) => setTimeout(r, step.delayMs))
+      }
+    }
+    pushLog('预设执行完毕')
+  } finally {
+    presetRunning.value = false
+  }
 }
 
 // 订阅设备列表与回执
 let unsubDevices: (() => void) | null = null
 let unsubResult: (() => void) | null = null
+let unsubBatchProgress: (() => void) | null = null
+let listTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   devices.value = await api.listDevices()
@@ -429,8 +739,14 @@ onMounted(async () => {
       !!result?.ok
     )
   })
-  // 定期刷新发现（主进程也每 10s 刷一次，这里 15s 拉一次设备列表兜底）
-  setInterval(() => {
+  unsubBatchProgress = api.onBatchProgress((payload) => {
+    const { total, done } = payload || {}
+    if (typeof total === 'number' && typeof done === 'number') {
+      batchProgress.value = { total, done }
+    }
+  })
+  // 定期刷新发现（主进程也每 10s 刷一次，这里 5s 拉一次设备列表兜底）
+  listTimer = setInterval(() => {
     api.listDevices().then((list) => {
       devices.value = list
     })
@@ -440,6 +756,11 @@ onMounted(async () => {
 onUnmounted(() => {
   unsubDevices?.()
   unsubResult?.()
+  unsubBatchProgress?.()
+  if (listTimer) {
+    clearInterval(listTimer)
+    listTimer = null
+  }
 })
 
 // 兼容：ipc 在 preload 已暴露
@@ -685,5 +1006,113 @@ void ipc
 }
 .cp-log-row.err {
   color: var(--td-error-color);
+}
+
+/* 时钟偏移告警（功能 C） */
+.cp-offset.warn,
+.cp-device-name.warn {
+  color: var(--td-error-color);
+  font-weight: 600;
+}
+.cp-offset {
+  font-size: 11px;
+}
+
+/* 批量进度条（功能 F） */
+.cp-progress {
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--td-border-level-1-color);
+  margin-bottom: 8px;
+}
+
+/* 操作预设（功能 E） */
+.cp-preset {
+  border-top: 1px solid var(--td-border-level-1-color);
+  padding: 12px 16px;
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow-y: auto;
+}
+.cp-preset-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--td-text-color-secondary);
+  margin-bottom: 8px;
+}
+.cp-preset-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.cp-preset-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 6px;
+  background: var(--td-bg-color-container);
+  border-radius: 4px;
+}
+.cp-preset-idx {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--td-brand-color);
+  color: #fff;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cp-preset-cmd {
+  flex: 1;
+  min-width: 0;
+}
+.cp-preset-delay {
+  color: var(--td-warning-color);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.cp-preset-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.cp-preset-add .t-input-number {
+  width: 90px;
+}
+.cp-preset-actions {
+  display: flex;
+  gap: 8px;
+}
+.cp-preset-actions .t-button {
+  flex: 1;
+}
+
+/* 画面预览（功能 D） */
+.cp-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 300px;
+}
+.cp-preview-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  width: 100%;
+}
+.cp-preview-img {
+  max-width: 100%;
+  max-height: 60vh;
+  border: 1px solid var(--td-border-level-1-color);
+  border-radius: 4px;
+  display: block;
 }
 </style>

@@ -115,8 +115,21 @@ declare global {
         refreshDiscovery: () => Promise<void>
         sendCommand: (peerIds: string[], command: any) => Promise<any>
         pushConfigFile: (peerIds: string[], config: string) => Promise<any>
+        getConfig: () => Promise<{
+          enabled: boolean
+          role: 'controlled' | 'controller'
+          deviceName: string
+        }>
+        setConfig: (
+          partial: Partial<{
+            enabled: boolean
+            role: 'controlled' | 'controller'
+            deviceName: string
+          }>
+        ) => Promise<any>
         onDevices: (listener: (devices: any[]) => void) => () => void
         onCommandResult: (listener: (payload: any) => void) => () => void
+        onBatchProgress: (listener: (payload: any) => void) => () => void
       }
       logging: {
         getConfig: () => Promise<any>

@@ -32,6 +32,12 @@ export interface CastConfig {
   shareEnabled: boolean
 }
 
+export interface ControlConfig {
+  enabled: boolean
+  role: 'controlled' | 'controller'
+  deviceName: string
+}
+
 export interface CastPeer {
   id: string
   name: string
@@ -56,8 +62,15 @@ const DEFAULT_CAST_CONFIG: CastConfig = {
   shareEnabled: false
 }
 
+const DEFAULT_CONTROL_CONFIG: ControlConfig = {
+  enabled: false,
+  role: 'controlled',
+  deviceName: ''
+}
+
 export class CastService {
   private config: CastConfig = { ...DEFAULT_CAST_CONFIG }
+  private controlConfig: ControlConfig = { ...DEFAULT_CONTROL_CONFIG }
   private app: Koa | null = null
   private server: import('http').Server | null = null
   private bonjour: Bonjour | null = null
@@ -91,11 +104,38 @@ export class CastService {
   loadConfig() {
     const saved = (cfgGet('cast') ?? {}) as Partial<CastConfig>
     this.config = { ...DEFAULT_CAST_CONFIG, ...saved }
+    const savedControl = (cfgGet('control') ?? {}) as Partial<ControlConfig>
+    this.controlConfig = { ...DEFAULT_CONTROL_CONFIG, ...savedControl }
     return this.config
   }
 
   getConfig() {
     return { ...this.config }
+  }
+
+  getControlConfig() {
+    return { ...this.controlConfig }
+  }
+
+  /** 是否需要作为被控端暴露：cast 或 control(被控端) 任一启用 */
+  private get shouldExposeAsServer() {
+    return (
+      this.config.enabled ||
+      (this.controlConfig.enabled && this.controlConfig.role === 'controlled')
+    )
+  }
+
+  /** 是否需要发现其他设备：cast 或 control(主控端) 任一启用 */
+  private get shouldBrowse() {
+    return (
+      this.config.enabled ||
+      (this.controlConfig.enabled && this.controlConfig.role === 'controller')
+    )
+  }
+
+  /** 当前是否有 HTTP server 在跑 */
+  private get serverRunning() {
+    return !!this.server
   }
 
   async setConfig(partial: Partial<CastConfig>) {
@@ -116,6 +156,21 @@ export class CastService {
       await this.restart()
     }
     return this.getConfig()
+  }
+
+  async setControlConfig(partial: Partial<ControlConfig>) {
+    const prev = this.controlConfig
+    const next: ControlConfig = { ...DEFAULT_CONTROL_CONFIG, ...prev, ...partial }
+    const shouldRestart =
+      next.enabled !== prev.enabled ||
+      next.role !== prev.role ||
+      next.deviceName !== prev.deviceName
+    this.controlConfig = next
+    await patchConfig({ control: next })
+    if (shouldRestart) {
+      await this.restart()
+    }
+    return this.getControlConfig()
   }
 
   private buildShareEntries(): ShareEntry[] {
@@ -158,12 +213,14 @@ export class CastService {
   }
 
   private publishBonjour() {
-    if (!this.bonjour || !this.config.enabled) return
+    // 被控端（control.enabled && role=controlled）或 cast 启用时才广播
+    if (!this.bonjour || !this.shouldExposeAsServer) return
     this.published?.stop?.()
     appLogger.info('[cast] bonjour publish start', {
       name: this.config.name || 'ExamAware',
       port: this.config.port,
-      share: this.config.shareEnabled
+      share: this.config.shareEnabled,
+      controlDeviceName: this.controlConfig.deviceName
     })
     this.published = this.bonjour.publish({
       name: this.config.name || 'ExamAware',
@@ -174,7 +231,8 @@ export class CastService {
         v: app.getVersion?.() || 'dev',
         share: this.config.shareEnabled ? '1' : '0',
         control: '1',
-        ctrlVer: '1'
+        ctrlVer: '1',
+        deviceName: (this.controlConfig.deviceName || '').slice(0, 32)
       }
     })
     // Some environments require explicit start()
@@ -209,12 +267,16 @@ export class CastService {
     return addresses.some((addr) => locals.has(addr.replace(/\.local\.?$/, '')))
   }
 
+  private resolveServiceHost(service: Service): string {
+    // 优先取 IPv4 地址（控制端可直连）；无则回退 service.host，去掉 .local 后缀
+    const ipv4 = service.addresses?.find((a) => /^\d+\.\d+\.\d+\.\d+$/.test(a))
+    if (ipv4) return ipv4
+    const host = service.host || 'localhost'
+    return host.replace(/\.local\.?:?$/, '')
+  }
+
   private onServiceUp(service: Service) {
-    const host = (
-      service.addresses?.find((a) => a.includes('.')) ||
-      service.host ||
-      'localhost'
-    ).replace(/\.local\.?:?$/, '')
+    const host = this.resolveServiceHost(service)
     const port = service.port
     const id = service.fqdn || `${host}:${port}`
     if (this.isSelfService(host, port, service.addresses || [])) return
@@ -236,11 +298,7 @@ export class CastService {
   }
 
   private onServiceDown(service: Service) {
-    const host = (
-      service.addresses?.find((a) => a.includes('.')) ||
-      service.host ||
-      'localhost'
-    ).replace(/\.local\.?:?$/, '')
+    const host = this.resolveServiceHost(service)
     const port = service.port
     const id = service.fqdn || `${host}:${port}`
     appLogger.info('[cast] peer left', { id, host, port })
@@ -359,46 +417,58 @@ export class CastService {
   }
 
   async start() {
-    if (!this.config.enabled) return
+    // 集控独立开关：cast.enabled 或 control.enabled 任一启用都需启动 bonjour
+    // 被控端（shouldExposeAsServer）需 HTTP server + publish；主控端（shouldBrowse）只需 browser
+    const needServer = this.shouldExposeAsServer
+    const needBrowse = this.shouldBrowse
+    if (!needServer && !needBrowse) return
     await this.stop()
 
-    const port = await findAvailablePort(this.config.port, 10)
-    this.config.port = port
-    await patchConfig({ cast: this.config })
-
     await this.ensureBonjourStarted()
-    this.publishBonjour()
-    this.startBrowser()
 
-    this.app = new Koa()
-    this.app.use(async (ctx, next) => {
-      const start = Date.now()
-      try {
-        await next()
-      } finally {
-        appLogger.info(`[cast] ${ctx.method} ${ctx.path} -> ${ctx.status} ${Date.now() - start}ms`)
-      }
-    })
+    if (needServer) {
+      const port = await findAvailablePort(this.config.port, 10)
+      this.config.port = port
+      await patchConfig({ cast: this.config })
 
-    this.app.use(
-      bodyParser({
-        enableTypes: ['json', 'text'],
-        jsonLimit: '2mb',
-        textLimit: '2mb'
+      this.publishBonjour()
+
+      this.app = new Koa()
+      this.app.use(async (ctx, next) => {
+        const start = Date.now()
+        try {
+          await next()
+        } finally {
+          appLogger.info(
+            `[cast] ${ctx.method} ${ctx.path} -> ${ctx.status} ${Date.now() - start}ms`
+          )
+        }
       })
-    )
 
-    const router = new Router()
-    this.registerRoutes(router as RouterInstance)
-    this.app.use(router.routes())
-    this.app.use(router.allowedMethods())
+      this.app.use(
+        bodyParser({
+          enableTypes: ['json', 'text'],
+          jsonLimit: '2mb',
+          textLimit: '2mb'
+        })
+      )
 
-    this.server = this.app.listen(port, '0.0.0.0', () => {
-      appLogger.info(`[cast] service listening on http://0.0.0.0:${port}`)
-    })
+      const router = new Router()
+      this.registerRoutes(router as RouterInstance)
+      this.app.use(router.routes())
+      this.app.use(router.allowedMethods())
 
-    // 挂载集控 WS 服务端到同一 HTTP server
-    this.controlServer.attach(this.server)
+      this.server = this.app.listen(port, '0.0.0.0', () => {
+        appLogger.info(`[cast] service listening on http://0.0.0.0:${port}`)
+      })
+
+      // 挂载集控 WS 服务端到同一 HTTP server
+      this.controlServer.attach(this.server)
+    }
+
+    if (needBrowse) {
+      this.startBrowser()
+    }
 
     // 监听 player 渲染层上报的状态，更新快照并广播给控制端
     if (!this.statusReportHandler) {

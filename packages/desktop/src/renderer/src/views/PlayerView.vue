@@ -364,10 +364,23 @@ const handleControlCommand = async (
 // 广播通知：主进程 → ExamPlayer 叠全屏 markdown 通知
 const handleOverlayNotice = (
   _event: unknown,
-  payload: { title: string; body: string; color?: string }
+  payload: { id?: string; title: string; body: string; color?: string }
 ) => {
   const player = examPlayerRef.value
-  player?.showBroadcastNotice?.(payload)
+  let ok = true
+  let error: string | undefined
+  try {
+    player?.showBroadcastNotice?.(payload)
+  } catch (e) {
+    ok = false
+    error = e instanceof Error ? e.message : '广播显示失败'
+  }
+  // 回执给主进程，消灭 fire-and-forget 虚假成功
+  if (payload?.id) {
+    try {
+      ipcRenderer?.send?.('player:overlay-notice-result', { id: payload.id, ok, error })
+    } catch {}
+  }
 }
 
 const sendControlResult = (id: string, result: { ok: boolean; error?: string }) => {

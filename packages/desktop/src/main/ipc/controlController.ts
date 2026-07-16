@@ -49,20 +49,27 @@ export class ControlController {
 
   @IpcHandle('control:send-command')
   async sendCommand(
-    _e: Electron.IpcMainInvokeEvent,
+    e: Electron.IpcMainInvokeEvent,
     payload: { peerIds: string[]; command: ControlCommand }
   ) {
     if (!payload?.peerIds || !payload?.command) {
       throw new Error('peerIds and command are required')
     }
-    return getManager().sendCommandBatch(payload.peerIds, payload.command)
+    const results: Array<{ peerId: string; result: any }> = []
+    await getManager().sendCommandBatchStream(payload.peerIds, payload.command, (progress) => {
+      results.push(progress)
+      // 流式推送进度给控制面板窗口
+      e.sender.send('control:batch-progress', {
+        ...progress,
+        total: payload.peerIds.length,
+        done: results.length
+      })
+    })
+    return results
   }
 
   @IpcHandle('control:push-config')
-  async pushConfig(
-    _e: Electron.IpcMainInvokeEvent,
-    payload: { peerIds: string[]; config: string }
-  ) {
+  async pushConfig(e: Electron.IpcMainInvokeEvent, payload: { peerIds: string[]; config: string }) {
     if (!payload?.peerIds || !payload?.config) {
       throw new Error('peerIds and config are required')
     }
@@ -70,6 +77,28 @@ export class ControlController {
       kind: 'pushConfig',
       data: { config: payload.config, autoPlay: true }
     }
-    return getManager().sendCommandBatch(payload.peerIds, command)
+    const results: Array<{ peerId: string; result: any }> = []
+    await getManager().sendCommandBatchStream(payload.peerIds, command, (progress) => {
+      results.push(progress)
+      e.sender.send('control:batch-progress', {
+        ...progress,
+        total: payload.peerIds.length,
+        done: results.length
+      })
+    })
+    return results
+  }
+
+  @IpcHandle('control:get-config')
+  getControlConfig() {
+    return castService.getControlConfig()
+  }
+
+  @IpcHandle('control:set-config')
+  async setControlConfig(
+    _e: Electron.IpcMainInvokeEvent,
+    payload: Partial<{ enabled: boolean; role: 'controlled' | 'controller'; deviceName: string }>
+  ) {
+    return castService.setControlConfig(payload || {})
   }
 }

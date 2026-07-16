@@ -19,6 +19,8 @@ export type ControlMessageKind =
   | 'broadcast'
   | 'exit'
   | 'openPlayer'
+  | 'captureScreen'
+  | 'listScreens'
 
 /** WS 帧顶层结构 */
 export interface ControlFrame {
@@ -91,6 +93,20 @@ export interface HelloData extends DeviceStatus {
 export interface CommandResultData {
   ok: boolean
   error?: string
+  /** captureScreen 回执：base64 jpg */
+  image?: string
+  /** captureScreen 回执：图片宽度 */
+  width?: number
+  /** captureScreen 回执：图片高度 */
+  height?: number
+  /** listScreens 回执：屏幕列表 */
+  screens?: ScreenInfo[]
+}
+
+/** 屏幕信息（listScreens 回执） */
+export interface ScreenInfo {
+  id: number
+  name: string
 }
 
 // ===== 序列化 =====
@@ -193,7 +209,23 @@ export function asResultData(data: unknown): CommandResultData | null {
   if (!data || typeof data !== 'object') return null
   const v = data as Record<string, unknown>
   if (typeof v.ok !== 'boolean') return null
-  return { ok: v.ok, error: typeof v.error === 'string' ? v.error : undefined }
+  const result: CommandResultData = {
+    ok: v.ok,
+    error: typeof v.error === 'string' ? v.error : undefined
+  }
+  // 截图/屏列表回执字段透传（captureScreen / listScreens 用）
+  if (typeof v.image === 'string') result.image = v.image
+  if (typeof v.width === 'number') result.width = v.width
+  if (typeof v.height === 'number') result.height = v.height
+  if (Array.isArray(v.screens)) {
+    result.screens = v.screens
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+      .map((s, i) => ({
+        id: typeof s.id === 'number' ? s.id : i,
+        name: typeof s.name === 'string' ? s.name : `Screen ${i}`
+      }))
+  }
+  return result
 }
 
 export function asDeviceStatus(data: unknown): DeviceStatus | null {

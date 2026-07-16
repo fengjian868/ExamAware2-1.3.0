@@ -144,6 +144,8 @@ const api = {
       ipcRenderer.invoke('control:send-command', { peerIds, command }),
     pushConfigFile: (peerIds: string[], config: string) =>
       ipcRenderer.invoke('control:push-config', { peerIds, config }),
+    getConfig: () => ipcRenderer.invoke('control:get-config'),
+    setConfig: (partial: any) => ipcRenderer.invoke('control:set-config', partial),
     onDevices: (listener: (devices: any[]) => void) => {
       const wrapped = (_event: Electron.IpcRendererEvent, devices: any[]) => listener(devices)
       ipcRenderer.on('control:devices', wrapped)
@@ -153,6 +155,11 @@ const api = {
       const wrapped = (_event: Electron.IpcRendererEvent, payload: any) => listener(payload)
       ipcRenderer.on('control:command-result', wrapped)
       return () => ipcRenderer.off('control:command-result', wrapped)
+    },
+    onBatchProgress: (listener: (payload: any) => void) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: any) => listener(payload)
+      ipcRenderer.on('control:batch-progress', wrapped)
+      return () => ipcRenderer.off('control:batch-progress', wrapped)
     }
   },
   logging: {

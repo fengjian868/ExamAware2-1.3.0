@@ -29,6 +29,7 @@ const PLAYER_ID = 'player'
 const CONTROL_IPC_CHANNEL = 'player:control'
 const CONTROL_RESULT_CHANNEL = 'player:control-result'
 const OVERLAY_NOTICE_CHANNEL = 'player:overlay-notice'
+const OVERLAY_NOTICE_RESULT_CHANNEL = 'player:overlay-notice-result'
 
 /** 等待渲染层回 player:control-result 的最大时长 */
 const CONTROL_RESULT_TIMEOUT_MS = 5000
@@ -73,6 +74,10 @@ export class ControlCommandExecutor {
           return await this.executeBroadcast(command.data)
         case 'openPlayer':
           return await this.executeOpenPlayer()
+        case 'listScreens':
+          return await this.executeListScreens()
+        case 'captureScreen':
+          return await this.executeCaptureScreen(command.data)
         default:
           return { ok: false, error: `未知命令: ${command.kind}` }
       }
@@ -96,8 +101,8 @@ export class ControlCommandExecutor {
       )
       await fs.promises.writeFile(file, payload.config, 'utf-8')
       setSharedConfig(payload.config)
-      // forceRecreate=true：若 player 已存在则重开载入新配置
-      createPlayerWindow(file)
+      // forceRecreate=true：若 player 已存在则销毁重开，确保加载新配置
+      createPlayerWindow(file, true)
       appLogger.info('[control] pushConfig 已创建 player 窗口', { autoPlay: payload.autoPlay })
       return { ok: true }
     } catch (err) {
@@ -142,21 +147,49 @@ export class ControlCommandExecutor {
     })
   }
 
-  /** broadcast：直接发 overlay-notice IPC，渲染层用 reminderService 叠通知 */
+  /** broadcast：确保 player 已开 → 发 overlay-notice → 等渲染层回执 */
   private async executeBroadcast(data: unknown): Promise<CommandResultData> {
     const payload = asBroadcastData(data)
     if (!payload) return { ok: false, error: 'broadcast 参数无效' }
-    const win = windowManager.get(PLAYER_ID)
+
+    // player 不存在则先打开（复用 openPlayer 逻辑）
+    let win = windowManager.get(PLAYER_ID)
     if (!win || win.isDestroyed()) {
-      return { ok: false, error: '播放器未运行' }
+      const openResult = await this.executeOpenPlayer()
+      if (!openResult.ok) return openResult
+      // 等待 PlayerView onMounted 注册 overlay-notice 监听
+      await new Promise((r) => setTimeout(r, 800))
+      win = windowManager.get(PLAYER_ID)
+      if (!win || win.isDestroyed()) {
+        return { ok: false, error: '播放器启动失败' }
+      }
     }
-    win.webContents.send(OVERLAY_NOTICE_CHANNEL, {
-      title: payload.title,
-      body: payload.body,
-      color: payload.color
+
+    const reqId = `broadcast-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return new Promise<CommandResultData>((resolve) => {
+      const timer = setTimeout(() => {
+        win!.webContents.removeListener(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+        resolve({ ok: false, error: '广播显示超时' })
+      }, 3000)
+
+      const onResult = (
+        _event: Electron.Event,
+        payload: { id?: string; ok?: boolean; error?: string }
+      ) => {
+        if (payload?.id !== reqId) return
+        clearTimeout(timer)
+        win!.webContents.removeListener(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+        resolve({ ok: Boolean(payload.ok), error: payload.error })
+      }
+      win!.webContents.on(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+      win!.webContents.send(OVERLAY_NOTICE_CHANNEL, {
+        id: reqId,
+        title: payload.title,
+        body: payload.body,
+        color: payload.color
+      })
+      appLogger.info('[control] broadcast 已下发', { title: payload.title })
     })
-    appLogger.info('[control] broadcast 已下发', { title: payload.title })
-    return { ok: true }
   }
 
   /** openPlayer：让被控端打开播放器。已有则聚焦，否则用已存档案重开 */
@@ -184,6 +217,45 @@ export class ControlCommandExecutor {
     } catch (err) {
       appLogger.error('[control] openPlayer failed', err as Error)
       return { ok: false, error: err instanceof Error ? err.message : '打开失败' }
+    }
+  }
+
+  /** listScreens：列出被控端可用显示器 */
+  private async executeListScreens(): Promise<CommandResultData> {
+    try {
+      const screenshot: any = await import('screenshot-desktop')
+      const displays: Array<{ id?: number; name?: string }> =
+        (await screenshot.listDisplays?.()) || []
+      const screens = displays.map((d, i) => ({
+        id: typeof d.id === 'number' ? d.id : i,
+        name: d.name || `显示器 ${i + 1}`
+      }))
+      if (!screens.length) screens.push({ id: 0, name: '主屏幕' })
+      return { ok: true, screens }
+    } catch (err) {
+      appLogger.error('[control] listScreens failed', err as Error)
+      // 库不可用时回退单屏
+      return { ok: true, screens: [{ id: 0, name: '主屏幕' }] }
+    }
+  }
+
+  /** captureScreen：系统级截图，base64 回传 */
+  private async executeCaptureScreen(data: unknown): Promise<CommandResultData> {
+    try {
+      const payload = (data || {}) as { displayId?: number }
+      const screenshot: any = await import('screenshot-desktop')
+      const opts: Record<string, unknown> = { format: 'jpg', quality: 60 }
+      if (typeof payload.displayId === 'number') opts.screen = payload.displayId
+      const buffer: Buffer = await screenshot(opts)
+      const image = buffer.toString('base64')
+      appLogger.info('[control] captureScreen 成功', {
+        sizeKB: Math.round(buffer.length / 1024),
+        displayId: payload.displayId
+      })
+      return { ok: true, image }
+    } catch (err) {
+      appLogger.error('[control] captureScreen failed', err as Error)
+      return { ok: false, error: err instanceof Error ? err.message : '截图失败' }
     }
   }
 

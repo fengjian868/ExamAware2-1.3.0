@@ -136,11 +136,11 @@ export const homeButtonsModule: AppModule = {
       theme: 'primary',
       order: 4,
       action: async () => {
-        // 被控端不可使用集控面板，需先在设置中切换为主控端
-        const role = await window.api.config.get('control.role', 'controlled')
-        if (role !== 'controller') {
+        // 需启用集控且角色为主控端方可打开面板
+        const ctrlCfg = await window.api.control.getConfig()
+        if (!ctrlCfg?.enabled || ctrlCfg.role !== 'controller') {
           MessagePlugin.warning(
-            '当前为被控端，无法使用集控。请先在「设置-共享与投送」中切换为主控端。'
+            '当前未启用集控或为被控端，无法使用集控。请先在「设置-共享与投送」中启用集控并切换为主控端。'
           )
           return
         }

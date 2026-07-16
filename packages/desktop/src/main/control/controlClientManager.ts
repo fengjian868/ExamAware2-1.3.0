@@ -122,7 +122,17 @@ export class ControlClientManager {
       if (peer.txt?.control !== '1') continue
       seen.add(peer.id)
       if (!this.connections.has(peer.id)) {
-        this.createConnection(peer.id, peer.host, peer.port, peer.name)
+        // deviceName 优先取 Bonjour TXT，回退 peer.name
+        const deviceName = peer.txt?.deviceName || peer.name
+        this.createConnection(peer.id, peer.host, peer.port, deviceName)
+      } else {
+        // 已有连接：若 TXT deviceName 变了，更新之
+        const conn = this.connections.get(peer.id)!
+        const newName = peer.txt?.deviceName || peer.name
+        if (newName && conn.deviceName !== newName) {
+          conn.deviceName = newName
+          this.emitDevices()
+        }
       }
     }
     // 不在发现列表里的连接：标记离线但保留一会以便重连，由重连退避封顶后清理
@@ -331,6 +341,23 @@ export class ControlClientManager {
       }))
     )
     return results
+  }
+
+  /**
+   * 批量下发命令，流式回执：每台完成立即回调，不等全部完成。
+   * 回调返回后该台才算"处理完"，便于控制端增量更新进度。
+   */
+  async sendCommandBatchStream(
+    peerIds: string[],
+    command: ControlCommand,
+    onProgress: (progress: { peerId: string; result: { ok: boolean; error?: string } }) => void
+  ): Promise<void> {
+    await Promise.all(
+      peerIds.map(async (peerId) => {
+        const result = await this.sendCommand(peerId, command)
+        onProgress({ peerId, result })
+      })
+    )
   }
 
   getDevices(): ControlDevice[] {

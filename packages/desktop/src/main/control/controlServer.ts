@@ -122,7 +122,9 @@ export class ControlServer {
       'setRoom',
       'broadcast',
       'exit',
-      'openPlayer'
+      'openPlayer',
+      'captureScreen',
+      'listScreens'
     ]
     if (!allowed.includes(frame.kind)) return null
     return { kind: frame.kind as ControlCommand['kind'], data: frame.data }
