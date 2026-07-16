@@ -143,9 +143,16 @@ export class ControlCommandExecutor {
 
     const playerWin = win
     const reqId = `${kind}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const safeRemoveListener = () => {
+      try {
+        if (!playerWin.isDestroyed()) {
+          playerWin.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
+        }
+      } catch {}
+    }
     return new Promise<CommandResultData>((resolve) => {
       const timer = setTimeout(() => {
-        playerWin!.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
+        safeRemoveListener()
         resolve({ ok: false, error: '渲染层响应超时' })
       }, CONTROL_RESULT_TIMEOUT_MS)
 
@@ -155,11 +162,21 @@ export class ControlCommandExecutor {
       ) => {
         if (payload?.id !== reqId) return
         clearTimeout(timer)
-        playerWin!.webContents.removeListener(CONTROL_RESULT_CHANNEL, onResult)
+        safeRemoveListener()
         resolve({ ok: Boolean(payload.ok), error: payload.error })
       }
-      playerWin!.webContents.on(CONTROL_RESULT_CHANNEL, onResult)
-      playerWin!.webContents.send(CONTROL_IPC_CHANNEL, { id: reqId, kind, data })
+      try {
+        if (playerWin.isDestroyed()) {
+          clearTimeout(timer)
+          return resolve({ ok: false, error: '播放器已关闭' })
+        }
+        playerWin.webContents.on(CONTROL_RESULT_CHANNEL, onResult)
+        playerWin.webContents.send(CONTROL_IPC_CHANNEL, { id: reqId, kind, data })
+      } catch (err) {
+        clearTimeout(timer)
+        safeRemoveListener()
+        resolve({ ok: false, error: err instanceof Error ? err.message : '发送失败' })
+      }
     })
   }
 
@@ -181,10 +198,18 @@ export class ControlCommandExecutor {
       }
     }
 
+    const broadcastWin = win
     const reqId = `broadcast-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const safeRemoveListener = () => {
+      try {
+        if (!broadcastWin.isDestroyed()) {
+          broadcastWin.webContents.removeListener(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+        }
+      } catch {}
+    }
     return new Promise<CommandResultData>((resolve) => {
       const timer = setTimeout(() => {
-        win!.webContents.removeListener(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+        safeRemoveListener()
         resolve({ ok: false, error: '广播显示超时' })
       }, 3000)
 
@@ -194,17 +219,27 @@ export class ControlCommandExecutor {
       ) => {
         if (payload?.id !== reqId) return
         clearTimeout(timer)
-        win!.webContents.removeListener(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+        safeRemoveListener()
         resolve({ ok: Boolean(payload.ok), error: payload.error })
       }
-      win!.webContents.on(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
-      win!.webContents.send(OVERLAY_NOTICE_CHANNEL, {
-        id: reqId,
-        title: payload.title,
-        body: payload.body,
-        color: payload.color
-      })
-      appLogger.info('[control] broadcast 已下发', { title: payload.title })
+      try {
+        if (broadcastWin.isDestroyed()) {
+          clearTimeout(timer)
+          return resolve({ ok: false, error: '播放器已关闭' })
+        }
+        broadcastWin.webContents.on(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
+        broadcastWin.webContents.send(OVERLAY_NOTICE_CHANNEL, {
+          id: reqId,
+          title: payload.title,
+          body: payload.body,
+          color: payload.color
+        })
+        appLogger.info('[control] broadcast 已下发', { title: payload.title })
+      } catch (err) {
+        clearTimeout(timer)
+        safeRemoveListener()
+        resolve({ ok: false, error: err instanceof Error ? err.message : '广播发送失败' })
+      }
     })
   }
 

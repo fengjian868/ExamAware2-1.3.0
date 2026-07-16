@@ -30,8 +30,6 @@ export function createControlWindow(): BrowserWindow {
       setup(win) {
         applyTitleBarOverlay(win)
         attachTitleBarOverlayLifecycle(win)
-        // 置顶级别高于 player 的 'screen-saver'，确保集控面板和对话框不被全屏 player 挡住
-        win.setAlwaysOnTop(true, 'pop-up-menu')
         win.focus()
       }
     }

@@ -147,6 +147,7 @@ export class ControlServer {
       'end',
       'alert',
       'setRoom',
+      'setMaterial',
       'broadcast',
       'exit',
       'openPlayer',
