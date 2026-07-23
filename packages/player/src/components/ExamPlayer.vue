@@ -89,6 +89,14 @@
       @dev-reminder-hide="handleDevReminderHide"
     />
 
+    <!-- 底部考试进度条（从考前到考试结束） -->
+    <div v-if="showExamProgressBar" class="exam-progress-bar">
+      <div
+        class="exam-progress-fill"
+        :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
+      ></div>
+    </div>
+
     <!-- 彩色提醒：用于考试开始/即将结束/考试结束/即将开考，淡入动画，点击可关闭 -->
     <transition name="fade-soft">
       <div
@@ -831,6 +839,37 @@ const renderedMarkdown = computed(() =>
   currentNotice.value ? renderMarkdownLight(currentNotice.value.markdown) : ''
 );
 const handleCloseNotice = () => reminder.closeCurrentNotice('manual');
+
+// === 底部进度条 ===
+// 从考前 preCountdownMinutes 开始到考试结束，展示整体进度
+const examProgress = computed(() => {
+  const exam = currentExam.value;
+  if (!exam) return 0;
+  const start = new Date(exam.start).getTime();
+  const end = new Date(exam.end).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return 0;
+  const preMs = (Number(preCountdownMinutesState.value) || 15) * 60 * 1000;
+  const totalStart = start - preMs;
+  const now = Date.now();
+  if (now <= totalStart) return 0;
+  if (now >= end) return 1;
+  return (now - totalStart) / (end - totalStart);
+});
+const examProgressPercent = computed(() => Math.round(examProgress.value * 100));
+const examProgressBarColor = computed(() => {
+  const st = examStatus.value?.status;
+  if (st === 'pending') return '#2196f3';
+  if (st === 'inProgress') {
+    const pct = examProgressPercent.value;
+    if (pct >= 85) return '#ff9800';
+    return '#4caf50';
+  }
+  if (st === 'completed') return '#9e9e9e';
+  return '#4caf50';
+});
+const showExamProgressBar = computed(() => {
+  return Boolean(currentExam.value) && examProgress.value > 0;
+});
 
 // === 集控：状态快照与命令执行 ===
 // 供宿主（desktop PlayerView）桥接 player:control / player:status-report IPC。
@@ -1865,5 +1904,23 @@ const resolvedCards = computed(() => {
 }
 .notice-card :deep(.t-button) {
   margin-top: 18px;
+}
+
+/* 底部考试进度条 */
+.exam-progress-bar {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  z-index: 10;
+}
+.exam-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s linear, background-color 0.5s ease;
 }
 </style>
