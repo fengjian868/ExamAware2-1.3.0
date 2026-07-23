@@ -68,6 +68,8 @@ export interface BroadcastCommandData {
   title: string
   body: string
   color?: string
+  /** 显示时长（秒），默认 15 */
+  durationSec?: number
 }
 
 /** 统一命令描述，下发时构造 */
@@ -255,7 +257,8 @@ export function asBroadcastData(data: unknown): BroadcastCommandData | null {
   return {
     title: v.title,
     body: v.body,
-    color: typeof v.color === 'string' ? v.color : undefined
+    color: typeof v.color === 'string' ? v.color : undefined,
+    durationSec: typeof v.durationSec === 'number' ? v.durationSec : undefined
   }
 }
 

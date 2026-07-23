@@ -260,58 +260,32 @@
       <t-input v-model="roomValue" placeholder="请输入考场号" maxlength="10" />
     </t-dialog>
 
-    <!-- 设置页码/场次对话框 -->
+    <!-- 设置页码对话框 -->
     <t-dialog
       v-model:visible="setPageVisible"
-      header="设置页码 / 场次"
+      header="设置页码"
       :on-confirm="confirmSetPage"
       width="420px"
     >
-      <t-radio-group
-        v-model="setPageMode"
-        variant="default-filled"
-        :options="[
-          { label: '切换考试场次', value: 'exam' },
-          { label: '设置试卷 / 答题卡', value: 'material' }
-        ]"
-        style="margin-bottom: 12px"
-      />
-
-      <template v-if="setPageMode === 'exam'">
-        <div class="cp-setpage-hint">
-          将选中的设备切换到指定考试场次。被控端必须已加载档案且播放器已开。
-        </div>
-        <t-input-number
-          v-model="setPageValue"
-          :min="1"
-          :step="1"
-          placeholder="场次序号（从 1 开始）"
-          style="width: 100%; margin-top: 12px"
-        />
-        <div v-if="setPageTotal" class="cp-setpage-total">共 {{ setPageTotal }} 场</div>
-      </template>
-
-      <template v-else>
-        <div class="cp-setpage-hint">
-          设置被控端试卷与答题卡的张数和页数。修改张数会自动联动页数。
-        </div>
-        <div class="cp-material-grid">
-          <div class="cp-material-group">
-            <span class="cp-material-label">试卷</span>
-            <div class="cp-material-row">
-              <t-input-number v-model="setPaperSheets" :min="0" :max="10" :step="1" suffix="张" />
-              <t-input-number v-model="setPaperPages" :min="0" :max="20" :step="1" suffix="页" />
-            </div>
-          </div>
-          <div class="cp-material-group">
-            <span class="cp-material-label">答题卡</span>
-            <div class="cp-material-row">
-              <t-input-number v-model="setAnswerSheets" :min="0" :max="10" :step="1" suffix="张" />
-              <t-input-number v-model="setAnswerPages" :min="0" :max="20" :step="1" suffix="页" />
-            </div>
+      <div class="cp-setpage-hint">
+        设置被控端试卷与答题卡的张数和页数。修改张数会自动联动页数。
+      </div>
+      <div class="cp-material-grid">
+        <div class="cp-material-group">
+          <span class="cp-material-label">试卷</span>
+          <div class="cp-material-row">
+            <t-input-number v-model="setPaperSheets" :min="0" :max="10" :step="1" suffix="张" />
+            <t-input-number v-model="setPaperPages" :min="0" :max="20" :step="1" suffix="页" />
           </div>
         </div>
-      </template>
+        <div class="cp-material-group">
+          <span class="cp-material-label">答题卡</span>
+          <div class="cp-material-row">
+            <t-input-number v-model="setAnswerSheets" :min="0" :max="10" :step="1" suffix="张" />
+            <t-input-number v-model="setAnswerPages" :min="0" :max="20" :step="1" suffix="页" />
+          </div>
+        </div>
+      </div>
     </t-dialog>
 
     <!-- 紧急广播对话框 -->
@@ -328,6 +302,10 @@
         :autosize="{ minRows: 3 }"
         style="margin-top: 12px"
       />
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px">
+        <span style="font-size: 13px; white-space: nowrap">显示时长</span>
+        <t-input-number v-model="broadcastDuration" :min="3" :max="300" :step="5" suffix="秒" style="flex: 1" />
+      </div>
     </t-dialog>
 
     <!-- 画面预览对话框 -->
@@ -576,11 +554,8 @@ const confirmRoom = async () => {
   await sendOne(roomTarget.value, { kind: 'setRoom', data: { room: roomValue.value } })
 }
 
-// 设置页码/场次对话框（切换场次 或 设置试卷/答题卡页数张数）
+// 设置页码对话框
 const setPageVisible = ref(false)
-const setPageMode = ref<'exam' | 'material'>('exam')
-const setPageValue = ref(1)
-const setPageTotal = ref(0)
 const setPageTarget = ref<string[]>([])
 const setPaperSheets = ref(0)
 const setPaperPages = ref(0)
@@ -593,12 +568,6 @@ const openSetPageDialog = (peerIds: string | string[]) => {
     return
   }
   setPageTarget.value = ids
-  setPageMode.value = 'exam'
-  // 取选中设备的当前场次和总场数作为默认值
-  const first = devices.value.find((d) => d.peerId === ids[0])
-  setPageValue.value = (first?.status?.currentExamIndex ?? 0) + 1
-  setPageTotal.value = first?.status?.totalExams ?? 0
-  // 材料默认值从 0 开始
   setPaperSheets.value = 0
   setPaperPages.value = 0
   setAnswerSheets.value = 0
@@ -607,25 +576,16 @@ const openSetPageDialog = (peerIds: string | string[]) => {
 }
 const confirmSetPage = async () => {
   setPageVisible.value = false
-  if (setPageMode.value === 'exam') {
-    const index = (setPageValue.value || 1) - 1
-    if (setPageTarget.value.length === 1) {
-      await sendOne(setPageTarget.value[0], { kind: 'switch', data: { index } })
-    } else {
-      await batchSend({ kind: 'switch', data: { index } })
-    }
+  const data = {
+    paperSheets: Number(setPaperSheets.value) || 0,
+    paperPages: Number(setPaperPages.value) || 0,
+    answerSheets: Number(setAnswerSheets.value) || 0,
+    answerPages: Number(setAnswerPages.value) || 0
+  }
+  if (setPageTarget.value.length === 1) {
+    await sendOne(setPageTarget.value[0], { kind: 'setMaterial', data })
   } else {
-    const data = {
-      paperSheets: Number(setPaperSheets.value) || 0,
-      paperPages: Number(setPaperPages.value) || 0,
-      answerSheets: Number(setAnswerSheets.value) || 0,
-      answerPages: Number(setAnswerPages.value) || 0
-    }
-    if (setPageTarget.value.length === 1) {
-      await sendOne(setPageTarget.value[0], { kind: 'setMaterial', data })
-    } else {
-      await batchSend({ kind: 'setMaterial', data })
-    }
+    await batchSend({ kind: 'setMaterial', data })
   }
 }
 
@@ -633,6 +593,7 @@ const confirmSetPage = async () => {
 const broadcastVisible = ref(false)
 const broadcastTitle = ref('')
 const broadcastBody = ref('')
+const broadcastDuration = ref(15)
 const broadcastTarget = ref<string[]>([])
 const openBroadcastDialog = (peerIds: string[]) => {
   if (!peerIds.length) {
@@ -642,13 +603,18 @@ const openBroadcastDialog = (peerIds: string[]) => {
   broadcastTarget.value = peerIds
   broadcastTitle.value = '紧急通知'
   broadcastBody.value = ''
+  broadcastDuration.value = 15
   broadcastVisible.value = true
 }
 const confirmBroadcast = async () => {
   broadcastVisible.value = false
   await batchSendTo(broadcastTarget.value, {
     kind: 'broadcast',
-    data: { title: broadcastTitle.value, body: broadcastBody.value }
+    data: {
+      title: broadcastTitle.value,
+      body: broadcastBody.value,
+      durationSec: broadcastDuration.value
+    }
   })
 }
 

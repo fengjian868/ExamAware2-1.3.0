@@ -2,7 +2,7 @@
  * 集控命令执行器：把控制端下发的命令转译为对本地 player 窗口的操作。
  * - pushConfig 复用 createPlayerWindow 链路（forceRecreate 重开载入新配置）
  * - switch/end/alert/setRoom/exit 通过 player:control IPC 转发给渲染层
- * - broadcast 通过 player:overlay-notice IPC 叠全屏通知
+ * - broadcast 通过独立 BrowserWindow 显示在播放器右下角
  */
 import { app } from 'electron'
 import * as fs from 'fs'
@@ -25,12 +25,11 @@ import {
   type DeviceStatus
 } from './controlProtocol'
 import type { WebSocket } from 'ws'
+import { showBroadcastWindow } from '../windows/broadcastWindow'
 
 const PLAYER_ID = 'player'
 const CONTROL_IPC_CHANNEL = 'player:control'
 const CONTROL_RESULT_CHANNEL = 'player:control-result'
-const OVERLAY_NOTICE_CHANNEL = 'player:overlay-notice'
-const OVERLAY_NOTICE_RESULT_CHANNEL = 'player:overlay-notice-result'
 
 /** 等待渲染层回 player:control-result 的最大时长 */
 const CONTROL_RESULT_TIMEOUT_MS = 5000
@@ -184,17 +183,16 @@ export class ControlCommandExecutor {
     })
   }
 
-  /** broadcast：确保 player 已开 → 发 overlay-notice → 等渲染层回执 */
+  /** broadcast：通过独立 BrowserWindow 在播放器右下角显示广播 */
   private async executeBroadcast(data: unknown): Promise<CommandResultData> {
     const payload = asBroadcastData(data)
     if (!payload) return { ok: false, error: 'broadcast 参数无效' }
 
-    // player 不存在则先打开（复用 openPlayer 逻辑）
+    // player 不存在则先打开
     let win = windowManager.get(PLAYER_ID)
     if (!win || win.isDestroyed()) {
       const openResult = await this.executeOpenPlayer()
       if (!openResult.ok) return openResult
-      // 等待 PlayerView onMounted 注册 overlay-notice 监听
       await new Promise((r) => {
         const t = setTimeout(r, 800)
         t.unref?.()
@@ -205,50 +203,21 @@ export class ControlCommandExecutor {
       }
     }
 
-    const broadcastWin = win
-    const reqId = `broadcast-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    const safeRemoveListener = () => {
-      try {
-        if (!broadcastWin.isDestroyed()) {
-          broadcastWin.webContents.removeListener(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
-        }
-      } catch {}
+    try {
+      showBroadcastWindow({
+        title: payload.title,
+        body: payload.body,
+        durationSec: payload.durationSec
+      })
+      appLogger.info('[control] broadcast 已显示', {
+        title: payload.title,
+        durationSec: payload.durationSec
+      })
+      return { ok: true }
+    } catch (err) {
+      appLogger.error('[control] broadcast 显示失败', err as Error)
+      return { ok: false, error: err instanceof Error ? err.message : '广播显示失败' }
     }
-    return new Promise<CommandResultData>((resolve) => {
-      const timer = setTimeout(() => {
-        safeRemoveListener()
-        resolve({ ok: false, error: '广播显示超时' })
-      }, 3000)
-      timer.unref?.()
-
-      const onResult = (
-        _event: Electron.Event,
-        payload: { id?: string; ok?: boolean; error?: string }
-      ) => {
-        if (payload?.id !== reqId) return
-        clearTimeout(timer)
-        safeRemoveListener()
-        resolve({ ok: Boolean(payload.ok), error: payload.error })
-      }
-      try {
-        if (broadcastWin.isDestroyed()) {
-          clearTimeout(timer)
-          return resolve({ ok: false, error: '播放器已关闭' })
-        }
-        broadcastWin.webContents.on(OVERLAY_NOTICE_RESULT_CHANNEL, onResult)
-        broadcastWin.webContents.send(OVERLAY_NOTICE_CHANNEL, {
-          id: reqId,
-          title: payload.title,
-          body: payload.body,
-          color: payload.color
-        })
-        appLogger.info('[control] broadcast 已下发', { title: payload.title })
-      } catch (err) {
-        clearTimeout(timer)
-        safeRemoveListener()
-        resolve({ ok: false, error: err instanceof Error ? err.message : '广播发送失败' })
-      }
-    })
   }
 
   /** openPlayer：让被控端打开播放器。已有则聚焦，否则用已存档案重开 */
