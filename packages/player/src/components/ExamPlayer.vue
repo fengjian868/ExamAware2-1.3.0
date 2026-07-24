@@ -1909,7 +1909,7 @@ const resolvedCards = computed(() => {
 /* 底部考试进度条：位于底部按钮栏上方，左右与内容区边缘对齐 */
 .exam-progress-bar {
   position: absolute;
-  bottom: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 5.25rem);
+  bottom: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 6.5rem);
   left: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
   right: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
   height: 8px;
