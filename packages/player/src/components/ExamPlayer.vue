@@ -63,6 +63,14 @@
       </div>
     </div>
 
+    <!-- 底部考试进度条（从考前到考试结束） -->
+    <div v-if="showExamProgressBar" class="exam-progress-bar">
+      <div
+        class="exam-progress-fill"
+        :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
+      ></div>
+    </div>
+
     <!-- 底部按钮栏 -->
     <ActionButtonBar
       v-if="showActionBar"
@@ -88,14 +96,6 @@
       @dev-reminder-test="handleDevReminderTest"
       @dev-reminder-hide="handleDevReminderHide"
     />
-
-    <!-- 底部考试进度条（从考前到考试结束） -->
-    <div v-if="showExamProgressBar" class="exam-progress-bar">
-      <div
-        class="exam-progress-fill"
-        :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
-      ></div>
-    </div>
 
     <!-- 彩色提醒：用于考试开始/即将结束/考试结束/即将开考，淡入动画，点击可关闭 -->
     <transition name="fade-soft">
@@ -1906,21 +1906,21 @@ const resolvedCards = computed(() => {
   margin-top: 18px;
 }
 
-/* 底部考试进度条 */
+/* 底部考试进度条：位于底部按钮栏上方，左右与内容区边缘对齐 */
 .exam-progress-bar {
   position: absolute;
-  bottom: 4px;
-  left: 0;
-  right: 0;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+  bottom: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 5.25rem);
+  left: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
+  right: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
   overflow: hidden;
   z-index: 10;
 }
 .exam-progress-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 4px;
   transition: width 1s linear, background-color 0.5s ease;
 }
 </style>
