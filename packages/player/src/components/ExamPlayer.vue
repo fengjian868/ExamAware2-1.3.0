@@ -60,15 +60,15 @@
         <div class="bottom-right">
           <component :is="resolvedCards.list" />
         </div>
-      </div>
-    </div>
 
-    <!-- 底部考试进度条（从考前到考试结束） -->
-    <div v-if="showExamProgressBar" class="exam-progress-bar">
-      <div
-        class="exam-progress-fill"
-        :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
-      ></div>
+        <!-- 底部考试进度条（从考前到考试结束） -->
+        <div v-if="showExamProgressBar" class="exam-progress-bar">
+          <div
+            class="exam-progress-fill"
+            :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
+          ></div>
+        </div>
+      </div>
     </div>
 
     <!-- 底部按钮栏 -->
@@ -1669,6 +1669,8 @@ const resolvedCards = computed(() => {
   min-height: 0;
   display: flex;
   gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
+  position: relative;
+  padding-bottom: 12px;
 }
 
 .bottom-left {
@@ -1906,17 +1908,16 @@ const resolvedCards = computed(() => {
   margin-top: 18px;
 }
 
-/* 底部考试进度条：位于底部按钮栏上方，左右与内容区边缘对齐 */
+/* 底部考试进度条：位于 bottom-section 内部，紧贴两个卡片下方 */
 .exam-progress-bar {
   position: absolute;
-  bottom: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 6.5rem);
-  left: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
-  right: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: 8px;
   background: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
   overflow: hidden;
-  z-index: 10;
 }
 .exam-progress-fill {
   height: 100%;
