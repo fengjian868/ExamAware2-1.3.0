@@ -1499,7 +1499,7 @@ const resolvedCards = computed(() => {
   height: 100vh;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #0e1518 0%, #15211f 50%, #0e1518 100%);
+  background: linear-gradient(160deg, #0a1410 0%, #0d1a14 45%, #07100c 100%);
   /* 提供本地默认变量，防止未继承导致的变量缺失 */
   --ui-scale: 1;
   --density-scale: 1;
@@ -1515,8 +1515,8 @@ const resolvedCards = computed(() => {
   height: 45%;
   background: radial-gradient(
     50% 50% at 50% 50%,
-    rgba(120, 163, 158, 0.18) 0%,
-    rgba(140, 170, 165, 0) 100%
+    rgba(245, 240, 225, 0.14) 0%,
+    rgba(220, 215, 200, 0) 100%
   );
 
   border-radius: 50%;
