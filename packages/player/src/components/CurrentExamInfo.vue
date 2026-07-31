@@ -71,7 +71,7 @@ export interface CurrentExamInfoProps {
 const props = withDefaults(defineProps<CurrentExamInfoProps>(), {
   examInfos: () => [],
   currentExamIndex: 0,
-  displayMode: 'stack'
+  displayMode: 'scroll'
 });
 
 interface DayGroup {

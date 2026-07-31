@@ -482,12 +482,12 @@ const isValidDisplayMode = (v: unknown): v is ExamInfoDisplayMode =>
   v === 'scroll' || v === 'stack' || v === 'current';
 
 const loadStoredExamInfoDisplayMode = (): ExamInfoDisplayMode => {
-  if (typeof window === 'undefined') return 'stack';
+  if (typeof window === 'undefined') return 'scroll';
   try {
     const v = window.localStorage.getItem(EXAM_INFO_DISPLAY_MODE_KEY);
-    return isValidDisplayMode(v) ? v : 'stack';
+    return isValidDisplayMode(v) ? v : 'scroll';
   } catch {
-    return 'stack';
+    return 'scroll';
   }
 };
 
@@ -1667,13 +1667,13 @@ const resolvedCards = computed(() => {
 }
 
 .bottom-left {
-  width: 45%;
+  width: 38%;
   min-width: 0;
   overflow: hidden;
 }
 
 .bottom-right {
-  width: 55%;
+  width: 62%;
   min-width: 0;
   overflow: hidden;
 }

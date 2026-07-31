@@ -181,7 +181,7 @@ const props = withDefaults(
     initialExamInfoLargeFont: true,
     initialMaterialFontScale: 1.4,
     initialAuxiliaryFontScale: 1.3,
-    initialExamInfoDisplayMode: 'stack',
+    initialExamInfoDisplayMode: 'scroll',
     extraTools: () => []
   }
 );
@@ -256,7 +256,7 @@ const normalizeExamInfoDisplayMode = (value: unknown): ExamInfoDisplayMode => {
   if (value === 'scroll' || value === 'stack' || value === 'current') {
     return value as ExamInfoDisplayMode;
   }
-  return 'stack';
+  return 'scroll';
 };
 
 const densityOptions: DensityOption[] = defaultDensityOptions;
