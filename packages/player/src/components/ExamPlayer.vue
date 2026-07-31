@@ -61,14 +61,6 @@
           <component :is="resolvedCards.list" />
         </div>
       </div>
-
-      <!-- 底部考试进度条（从考前到考试结束）：位于卡片下方，与卡片左右对齐 -->
-      <div v-if="showExamProgressBar" class="exam-progress-bar">
-        <div
-          class="exam-progress-fill"
-          :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
-        ></div>
-      </div>
     </div>
 
     <!-- 底部按钮栏 -->
@@ -873,37 +865,6 @@ const renderedMarkdown = computed(() =>
 );
 const handleCloseNotice = () => reminder.closeCurrentNotice('manual');
 
-// === 底部进度条 ===
-// 从考前 preCountdownMinutes 开始到考试结束，展示整体进度
-const examProgress = computed(() => {
-  const exam = currentExam.value;
-  if (!exam) return 0;
-  const start = new Date(exam.start).getTime();
-  const end = new Date(exam.end).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return 0;
-  const preMs = (Number(preCountdownMinutesState.value) || 15) * 60 * 1000;
-  const totalStart = start - preMs;
-  const now = Date.now();
-  if (now <= totalStart) return 0;
-  if (now >= end) return 1;
-  return (now - totalStart) / (end - totalStart);
-});
-const examProgressPercent = computed(() => Math.round(examProgress.value * 100));
-const examProgressBarColor = computed(() => {
-  const st = examStatus.value?.status;
-  if (st === 'pending') return '#2196f3';
-  if (st === 'inProgress') {
-    const pct = examProgressPercent.value;
-    if (pct >= 85) return '#ff9800';
-    return '#4caf50';
-  }
-  if (st === 'completed') return '#9e9e9e';
-  return '#4caf50';
-});
-const showExamProgressBar = computed(() => {
-  return Boolean(currentExam.value) && examProgress.value > 0;
-});
-
 // === 集控：状态快照与命令执行 ===
 // 供宿主（desktop PlayerView）桥接 player:control / player:status-report IPC。
 // player 包本身不依赖 electron IPC，只暴露纯方法。
@@ -1538,7 +1499,7 @@ const resolvedCards = computed(() => {
   height: 100vh;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #0a0e1a 0%, #0d1b2a 50%, #0a0e1a 100%);
+  background: linear-gradient(135deg, #0e1518 0%, #15211f 50%, #0e1518 100%);
   /* 提供本地默认变量，防止未继承导致的变量缺失 */
   --ui-scale: 1;
   --density-scale: 1;
@@ -1554,8 +1515,8 @@ const resolvedCards = computed(() => {
   height: 45%;
   background: radial-gradient(
     50% 50% at 50% 50%,
-    rgba(55, 88, 255, 0.3) 0%,
-    rgba(70, 82, 255, 0) 100%
+    rgba(120, 163, 158, 0.18) 0%,
+    rgba(140, 170, 165, 0) 100%
   );
 
   border-radius: 50%;
@@ -1938,22 +1899,5 @@ const resolvedCards = computed(() => {
 }
 .notice-card :deep(.t-button) {
   margin-top: 18px;
-}
-
-/* 底部考试进度条：位于 bottom-section 下方，与卡片左右对齐，保持间距 */
-.exam-progress-bar {
-  flex-shrink: 0;
-  margin-top: 0.5rem;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.exam-progress-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition:
-    width 1s linear,
-    background-color 0.5s ease;
 }
 </style>
