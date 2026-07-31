@@ -190,25 +190,10 @@ export class ControlCommandExecutor {
     })
   }
 
-  /** broadcast：通过独立 BrowserWindow 在播放器右下角显示广播 */
+  /** broadcast：通过独立置顶悬浮窗显示广播，不依赖播放器 */
   private async executeBroadcast(data: unknown): Promise<CommandResultData> {
     const payload = asBroadcastData(data)
     if (!payload) return { ok: false, error: 'broadcast 参数无效' }
-
-    // player 不存在则先打开
-    let win = windowManager.get(PLAYER_ID)
-    if (!win || win.isDestroyed()) {
-      const openResult = await this.executeOpenPlayer()
-      if (!openResult.ok) return openResult
-      await new Promise((r) => {
-        const t = setTimeout(r, 800)
-        t.unref?.()
-      })
-      win = windowManager.get(PLAYER_ID)
-      if (!win || win.isDestroyed()) {
-        return { ok: false, error: '播放器启动失败' }
-      }
-    }
 
     try {
       showBroadcastWindow({

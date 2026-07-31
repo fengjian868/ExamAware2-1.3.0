@@ -1,11 +1,10 @@
 /**
- * 被控端广播窗口：在播放器右下角独立 BrowserWindow 显示广播内容。
- * - 层级高于全屏播放器（screen-saver）
- * - 无关闭/最小化按钮，自动定时关闭
- * - 不遮挡播放器底部倒计时
+ * 被控端广播窗口：独立置顶悬浮窗，显示广播内容。
+ * - 不依赖播放器，可在任意状态下显示
+ * - 层级最高（screen-saver），覆盖全屏播放器与桌面
+ * - 居中显示，自动定时关闭
  */
-import { BrowserWindow } from 'electron'
-import { windowManager } from './windowManager'
+import { BrowserWindow, screen } from 'electron'
 
 let broadcastWindow: BrowserWindow | null = null
 let closeTimer: NodeJS.Timeout | null = null
@@ -28,20 +27,18 @@ export function showBroadcastWindow(payload: {
   body: string
   durationSec?: number
 }): void {
-  const playerWin = windowManager.get('player')
-  if (!playerWin || playerWin.isDestroyed()) return
-
   // 先关闭已有的广播窗口
   closeBroadcastWindow()
 
   const durationSec = payload.durationSec ?? 15
 
-  // 计算位置：播放器右下角，底部偏移 100px 避开倒计时
-  const playerBounds = playerWin.getBounds()
-  const winW = 400
-  const winH = 200
-  const x = playerBounds.x + playerBounds.width - winW - 20
-  const y = playerBounds.y + playerBounds.height - winH - 100
+  // 以主屏幕为基准居中显示（不依赖播放器窗口）
+  const display = screen.getPrimaryDisplay()
+  const workArea = display.workArea
+  const winW = 480
+  const winH = 260
+  const x = Math.round(workArea.x + (workArea.width - winW) / 2)
+  const y = Math.round(workArea.y + (workArea.height - winH) / 2)
 
   broadcastWindow = new BrowserWindow({
     width: winW,
@@ -52,9 +49,9 @@ export function showBroadcastWindow(payload: {
     skipTaskbar: true,
     resizable: false,
     minimizable: false,
+    maximizable: false,
     fullscreenable: false,
     transparent: true,
-    parent: playerWin,
     focusable: false,
     show: false,
     webPreferences: {
@@ -64,6 +61,8 @@ export function showBroadcastWindow(payload: {
   })
 
   broadcastWindow.setAlwaysOnTop(true, 'screen-saver')
+  // 阻止抢焦点，避免打断播放器
+  broadcastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
   // 内联 HTML
   const html = `<!DOCTYPE html>
@@ -71,25 +70,27 @@ export function showBroadcastWindow(payload: {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: rgba(30, 30, 30, 0.92);
+    background: rgba(20, 28, 34, 0.96);
     color: #fff;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
     width: 100vw; height: 100vh;
     display: flex; flex-direction: column;
-    padding: 20px 24px;
-    border: 1px solid rgba(255,255,255,0.15);
+    padding: 24px 28px;
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
   }
   .bc-title {
-    font-size: 18px; font-weight: 700; margin-bottom: 8px;
+    font-size: 22px; font-weight: 700; margin-bottom: 12px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: #ffd66b;
   }
   .bc-body {
-    font-size: 14px; line-height: 1.6; flex: 1; overflow-y: auto;
-    opacity: 0.9;
+    font-size: 16px; line-height: 1.7; flex: 1; overflow-y: auto;
+    opacity: 0.95;
   }
   .bc-countdown {
-    font-size: 12px; opacity: 0.5; text-align: right; margin-top: 8px;
+    font-size: 13px; opacity: 0.5; text-align: right; margin-top: 12px;
   }
 </style></head><body>
   <div class="bc-title">${escHtml(payload.title)}</div>

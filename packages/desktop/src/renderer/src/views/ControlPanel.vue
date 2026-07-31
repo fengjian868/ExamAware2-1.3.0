@@ -126,9 +126,6 @@
             <t-button size="small" @click="sendOne(selected.peerId, { kind: 'openPlayer' })"
               >打开播放器</t-button
             >
-            <t-button size="small" :loading="previewLoading" @click="openPreview(selected.peerId)"
-              >画面预览</t-button
-            >
             <t-button
               size="small"
               theme="danger"
@@ -362,43 +359,6 @@
           suffix="秒"
           style="flex: 1"
         />
-      </div>
-    </t-dialog>
-
-    <!-- 画面预览对话框 -->
-    <t-dialog
-      v-model:visible="previewVisible"
-      :header="`画面预览 - ${previewDeviceName}`"
-      :footer="false"
-      width="800px"
-    >
-      <div class="cp-preview-wrap">
-        <t-select
-          v-if="previewScreens.length > 1"
-          v-model="previewScreenId"
-          :options="previewScreens.map((s) => ({ label: s.name, value: s.id }))"
-          size="small"
-          style="margin-bottom: 12px; width: 200px"
-          @change="capturePreview"
-        />
-        <div v-if="previewLoading" class="cp-preview-loading">
-          <t-loading text="正在截图..." />
-        </div>
-        <img
-          v-else-if="previewImage"
-          :src="`data:image/jpeg;base64,${previewImage}`"
-          class="cp-preview-img"
-        />
-        <t-empty v-else description="点击下方按钮截图" />
-        <t-button
-          variant="outline"
-          size="small"
-          :loading="previewLoading"
-          style="margin-top: 12px"
-          @click="capturePreview"
-        >
-          {{ previewImage ? '刷新截图' : '截图' }}
-        </t-button>
       </div>
     </t-dialog>
   </div>
@@ -769,55 +729,6 @@ const confirmBroadcast = async () => {
 
 const batchSendTo = async (peerIds: string[], command: any) => {
   await sendSequentially(peerIds, command, command.kind, '请选择目标设备')
-}
-
-// ===== 功能 D：画面预览（系统级截图，手动点按，支持选屏） =====
-const previewLoading = ref(false)
-const previewVisible = ref(false)
-const previewImage = ref('')
-const previewScreens = ref<Array<{ id: number; name: string }>>([])
-const previewScreenId = ref<number>(0)
-const previewDeviceName = ref('')
-let previewPeerId = ''
-
-const openPreview = async (peerId: string) => {
-  previewPeerId = peerId
-  previewDeviceName.value = deviceName(peerId)
-  previewImage.value = ''
-  previewScreens.value = []
-  previewScreenId.value = 0
-  previewVisible.value = true
-  previewLoading.value = true
-  // 先列屏（被控端可能多屏），失败不阻塞截图
-  try {
-    const res = await api.sendCommand([peerId], { kind: 'listScreens' })
-    const r = res?.[0]?.result as any
-    if (r?.ok && Array.isArray(r.screens) && r.screens.length) {
-      previewScreens.value = r.screens
-      previewScreenId.value = r.screens[0].id
-    }
-  } catch {}
-  await capturePreview()
-}
-
-const capturePreview = async () => {
-  if (!previewPeerId) return
-  previewLoading.value = true
-  try {
-    const data: any =
-      previewScreens.value.length > 1 ? { displayId: previewScreenId.value } : undefined
-    const res = await api.sendCommand([previewPeerId], { kind: 'captureScreen', data })
-    const r = res?.[0]?.result as any
-    if (r?.ok && r.image) {
-      previewImage.value = r.image
-    } else {
-      MessagePlugin.error(r?.error || '截图失败')
-    }
-  } catch {
-    MessagePlugin.error('截图失败')
-  } finally {
-    previewLoading.value = false
-  }
 }
 
 // ===== 功能 F：批量进度实时追踪 =====
@@ -1465,27 +1376,5 @@ void ipc
 .cp-history-ops {
   display: flex;
   flex-shrink: 0;
-}
-
-/* 画面预览（功能 D） */
-.cp-preview-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 300px;
-}
-.cp-preview-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 300px;
-  width: 100%;
-}
-.cp-preview-img {
-  max-width: 100%;
-  max-height: 60vh;
-  border: 1px solid var(--td-border-level-1-color);
-  border-radius: 4px;
-  display: block;
 }
 </style>
