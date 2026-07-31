@@ -35,8 +35,8 @@ export function showBroadcastWindow(payload: {
   // 以主屏幕为基准居中显示（不依赖播放器窗口）
   const display = screen.getPrimaryDisplay()
   const workArea = display.workArea
-  const winW = 480
-  const winH = 260
+  const winW = 720
+  const winH = 420
   const x = Math.round(workArea.x + (workArea.width - winW) / 2)
   const y = Math.round(workArea.y + (workArea.height - winH) / 2)
 
@@ -81,16 +81,16 @@ export function showBroadcastWindow(payload: {
     box-shadow: 0 8px 40px rgba(0,0,0,0.5);
   }
   .bc-title {
-    font-size: 22px; font-weight: 700; margin-bottom: 12px;
+    font-size: 42px; font-weight: 700; margin-bottom: 20px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     color: #ffd66b;
   }
   .bc-body {
-    font-size: 16px; line-height: 1.7; flex: 1; overflow-y: auto;
+    font-size: 30px; line-height: 1.6; flex: 1; overflow-y: auto;
     opacity: 0.95;
   }
   .bc-countdown {
-    font-size: 13px; opacity: 0.5; text-align: right; margin-top: 12px;
+    font-size: 18px; opacity: 0.5; text-align: right; margin-top: 20px;
   }
 </style></head><body>
   <div class="bc-title">${escHtml(payload.title)}</div>
