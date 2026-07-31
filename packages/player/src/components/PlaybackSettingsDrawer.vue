@@ -94,6 +94,24 @@
           </div>
         </div>
         <div class="settings-group">
+          <div class="settings-label">考试信息显示模式</div>
+          <div class="settings-control density-options">
+            <t-radio-group v-model:value="examInfoDisplayModeModel">
+              <t-radio
+                v-for="option in examInfoDisplayModeOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                <div class="density-option-label">
+                  <span class="density-option-title">{{ option.label }}</span>
+                  <span class="density-option-description">{{ option.description }}</span>
+                </div>
+              </t-radio>
+            </t-radio-group>
+            <div class="settings-hint">多天考试时信息的排列方式，默认纵向堆叠</div>
+          </div>
+        </div>
+        <div class="settings-group">
           <div class="settings-label">试卷答题卡字号</div>
           <div class="settings-control">
             <div class="slider-row">
@@ -151,7 +169,12 @@ import {
   Button as TButton,
   Switch as TSwitch
 } from 'tdesign-vue-next';
-import type { UIDensity, DensityOption } from '../types/toolbar';
+import type {
+  UIDensity,
+  DensityOption,
+  ExamInfoDisplayMode,
+  ExamInfoDisplayModeOption
+} from '../types/toolbar';
 
 type DevReminderPreset = 'start' | 'warning' | 'end';
 
@@ -165,6 +188,8 @@ const props = withDefaults(
     largeClockScale: number;
     auxiliaryFontScale: number;
     examInfoLargeFont: boolean;
+    examInfoDisplayMode: ExamInfoDisplayMode;
+    examInfoDisplayModeOptions: ExamInfoDisplayModeOption[];
     materialFontScale: number;
     formatScale: (value: number | string) => string;
     isDevMode?: boolean;
@@ -172,6 +197,7 @@ const props = withDefaults(
   {
     isDevMode: false,
     examInfoLargeFont: true,
+    examInfoDisplayMode: 'stack',
     materialFontScale: 1.4,
     auxiliaryFontScale: 1.3,
     preCountdownMinutes: 15
@@ -186,6 +212,7 @@ const emit = defineEmits<{
   (e: 'update:largeClockScale', value: number): void;
   (e: 'update:auxiliaryFontScale', value: number): void;
   (e: 'update:examInfoLargeFont', value: boolean): void;
+  (e: 'update:examInfoDisplayMode', value: ExamInfoDisplayMode): void;
   (e: 'update:materialFontScale', value: number): void;
   (e: 'confirm'): void;
   (e: 'close'): void;
@@ -223,6 +250,11 @@ const auxiliaryFontScaleModel = computed({
 const examInfoLargeFontModel = computed({
   get: () => props.examInfoLargeFont,
   set: (value: boolean) => emit('update:examInfoLargeFont', value)
+});
+
+const examInfoDisplayModeModel = computed({
+  get: () => props.examInfoDisplayMode,
+  set: (value: ExamInfoDisplayMode) => emit('update:examInfoDisplayMode', value)
 });
 
 const materialFontScaleModel = computed({

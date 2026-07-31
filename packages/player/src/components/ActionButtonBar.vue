@@ -127,8 +127,10 @@
     :large-clock-scale="tempLargeClockScale"
     :auxiliary-font-scale="tempAuxiliaryFontScale"
     :exam-info-large-font="tempExamInfoLargeFont"
+    :exam-info-display-mode="tempExamInfoDisplayMode"
     :material-font-scale="tempMaterialFontScale"
     :density-options="densityOptions"
+    :exam-info-display-mode-options="examInfoDisplayModeOptions"
     :format-scale="formatScale"
     :is-dev-mode="isDevMode"
     @update:visible="handleSettingsVisibleChange"
@@ -138,6 +140,7 @@
     @update:largeClockScale="handleTempLargeClockScaleUpdate"
     @update:auxiliaryFontScale="handleTempAuxiliaryFontScaleUpdate"
     @update:examInfoLargeFont="handleTempExamInfoLargeFontUpdate"
+    @update:examInfoDisplayMode="handleTempExamInfoDisplayModeUpdate"
     @update:materialFontScale="handleTempMaterialFontScaleUpdate"
     @close="handleSettingsClosed"
     @confirm="handleSettingsConfirm"
@@ -153,9 +156,10 @@ import type {
   UIDensity,
   DensityOption,
   DevReminderPreset,
-  DevReminderPayload
+  DevReminderPayload,
+  ExamInfoDisplayMode
 } from '../types/toolbar';
-import { defaultDensityOptions } from '../types/toolbar';
+import { defaultDensityOptions, defaultExamInfoDisplayModeOptions } from '../types/toolbar';
 import PlaybackSettingsDrawer from './PlaybackSettingsDrawer.vue';
 const props = withDefaults(
   defineProps<{
@@ -166,6 +170,7 @@ const props = withDefaults(
     initialExamInfoLargeFont?: boolean;
     initialMaterialFontScale?: number;
     initialAuxiliaryFontScale?: number;
+    initialExamInfoDisplayMode?: ExamInfoDisplayMode;
     extraTools?: readonly PlayerToolbarItem[];
   }>(),
   {
@@ -176,6 +181,7 @@ const props = withDefaults(
     initialExamInfoLargeFont: true,
     initialMaterialFontScale: 1.4,
     initialAuxiliaryFontScale: 1.3,
+    initialExamInfoDisplayMode: 'stack',
     extraTools: () => []
   }
 );
@@ -190,6 +196,7 @@ const emit = defineEmits<{
   (e: 'examInfoLargeFontToggle', enabled: boolean): void;
   (e: 'materialFontScaleChange', scale: number): void;
   (e: 'auxiliaryFontScaleChange', scale: number): void;
+  (e: 'examInfoDisplayModeChange', mode: ExamInfoDisplayMode): void;
   (e: 'devReminderTest', preset: DevReminderPreset | DevReminderPayload): void;
   (e: 'devReminderHide'): void;
   (e: 'openSettings'): void;
@@ -245,7 +252,15 @@ const normalizeDensity = (value: unknown): UIDensity => {
   return 'comfortable';
 };
 
+const normalizeExamInfoDisplayMode = (value: unknown): ExamInfoDisplayMode => {
+  if (value === 'scroll' || value === 'stack' || value === 'current') {
+    return value as ExamInfoDisplayMode;
+  }
+  return 'stack';
+};
+
 const densityOptions: DensityOption[] = defaultDensityOptions;
+const examInfoDisplayModeOptions = defaultExamInfoDisplayModeOptions;
 
 const densityFactorMap: Record<UIDensity, number> = {
   comfortable: 1,
@@ -277,6 +292,11 @@ const tempLargeClockEnabled = ref<boolean>(largeClockEnabled.value);
 
 const examInfoLargeFont = ref<boolean>(Boolean(props.initialExamInfoLargeFont));
 const tempExamInfoLargeFont = ref<boolean>(examInfoLargeFont.value);
+
+const examInfoDisplayMode = ref<ExamInfoDisplayMode>(
+  normalizeExamInfoDisplayMode(props.initialExamInfoDisplayMode)
+);
+const tempExamInfoDisplayMode = ref<ExamInfoDisplayMode>(examInfoDisplayMode.value);
 
 const materialFontScale = ref<number>(
   props.initialMaterialFontScale !== undefined && props.initialMaterialFontScale !== null
@@ -310,6 +330,10 @@ const handleTempLargeClockScaleUpdate = (value: number) => {
 
 const handleTempExamInfoLargeFontUpdate = (value: boolean) => {
   tempExamInfoLargeFont.value = value;
+};
+
+const handleTempExamInfoDisplayModeUpdate = (value: ExamInfoDisplayMode) => {
+  tempExamInfoDisplayMode.value = normalizeExamInfoDisplayMode(value);
 };
 
 const handleTempMaterialFontScaleUpdate = (value: number) => {
@@ -567,6 +591,32 @@ watch(
     tempExamInfoLargeFont.value = value;
   }
 );
+
+watch(
+  () => props.initialExamInfoDisplayMode,
+  (value) => {
+    if (value === undefined || value === null) return;
+    const safe = normalizeExamInfoDisplayMode(value);
+    examInfoDisplayMode.value = safe;
+    tempExamInfoDisplayMode.value = safe;
+  }
+);
+
+watch(
+  examInfoDisplayMode,
+  (mode, previous) => {
+    if (mode === previous) return;
+    emit('examInfoDisplayModeChange', mode);
+  },
+  { immediate: true }
+);
+
+watch(tempExamInfoDisplayMode, (value) => {
+  const safe = normalizeExamInfoDisplayMode(value);
+  if (examInfoDisplayMode.value !== safe) {
+    examInfoDisplayMode.value = safe;
+  }
+});
 
 watch(
   () => props.initialMaterialFontScale,
@@ -877,6 +927,7 @@ const handleSettingsConfirm = () => {
   largeClockScale.value = clampClockScale(tempLargeClockScale.value);
   largeClockEnabled.value = Boolean(tempLargeClockEnabled.value);
   examInfoLargeFont.value = Boolean(tempExamInfoLargeFont.value);
+  examInfoDisplayMode.value = normalizeExamInfoDisplayMode(tempExamInfoDisplayMode.value);
   materialFontScale.value = clampMaterialFontScale(tempMaterialFontScale.value);
   auxiliaryFontScale.value = clampAuxiliaryFontScale(tempAuxiliaryFontScale.value);
   showSettings.value = false;
@@ -898,6 +949,7 @@ const handleSettingsVisibleChange = (visible: boolean) => {
     tempLargeClockScale.value = largeClockScale.value;
     tempLargeClockEnabled.value = largeClockEnabled.value;
     tempExamInfoLargeFont.value = examInfoLargeFont.value;
+    tempExamInfoDisplayMode.value = examInfoDisplayMode.value;
     tempMaterialFontScale.value = materialFontScale.value;
     tempAuxiliaryFontScale.value = auxiliaryFontScale.value;
   }
@@ -910,6 +962,7 @@ const handleSettingsClosed = () => {
   tempLargeClockScale.value = largeClockScale.value;
   tempLargeClockEnabled.value = largeClockEnabled.value;
   tempExamInfoLargeFont.value = examInfoLargeFont.value;
+  tempExamInfoDisplayMode.value = examInfoDisplayMode.value;
   tempMaterialFontScale.value = materialFontScale.value;
   tempAuxiliaryFontScale.value = auxiliaryFontScale.value;
   scheduleCollapse();
@@ -975,12 +1028,20 @@ const formatScale = (value: number | string) => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
   gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.25rem);
   padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.5rem);
   position: relative;
   overflow: hidden;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .action-button.extra-tool {
@@ -1095,7 +1156,15 @@ const formatScale = (value: number | string) => {
   border-radius: 999px;
   padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.25rem);
   gap: 0;
-  transition: width 0.1s ease, height 0.1s ease, padding 0.1s ease, border-radius 0.1s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  transition:
+    width 0.1s ease,
+    height 0.1s ease,
+    padding 0.1s ease,
+    border-radius 0.1s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .action-button-bar.collapsed .action-button.extra-tool {

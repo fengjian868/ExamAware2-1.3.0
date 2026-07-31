@@ -60,14 +60,14 @@
         <div class="bottom-right">
           <component :is="resolvedCards.list" />
         </div>
+      </div>
 
-        <!-- 底部考试进度条（从考前到考试结束） -->
-        <div v-if="showExamProgressBar" class="exam-progress-bar">
-          <div
-            class="exam-progress-fill"
-            :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
-          ></div>
-        </div>
+      <!-- 底部考试进度条（从考前到考试结束）：位于卡片下方，与卡片左右对齐 -->
+      <div v-if="showExamProgressBar" class="exam-progress-bar">
+        <div
+          class="exam-progress-fill"
+          :style="{ width: examProgressPercent + '%', backgroundColor: examProgressBarColor }"
+        ></div>
       </div>
     </div>
 
@@ -81,6 +81,7 @@
       :initial-auxiliary-font-scale="auxiliaryFontScaleState"
       :initial-exam-info-large-font="examInfoLargeFontState"
       :initial-material-font-scale="materialFontScaleState"
+      :initial-exam-info-display-mode="examInfoDisplayModeState"
       :extra-tools="toolbarTools"
       @exit="emit('exit')"
       @minimize="emit('minimize')"
@@ -92,6 +93,7 @@
       @clock-scale-change="handleLargeClockScaleChange"
       @auxiliary-font-scale-change="handleAuxiliaryFontScaleChange"
       @exam-info-large-font-toggle="handleExamInfoLargeFontToggle"
+      @exam-info-display-mode-change="handleExamInfoDisplayModeChange"
       @material-font-scale-change="handleMaterialFontScaleChange"
       @dev-reminder-test="handleDevReminderTest"
       @dev-reminder-hide="handleDevReminderHide"
@@ -178,6 +180,7 @@ import { providePlayerToolbar } from '../composables/usePlayerToolbar';
 import { Dialog as TDialog, Input as TInput, Button as TButton } from 'tdesign-vue-next';
 import { useReminderService, ReminderUtils } from '../utils/reminderService';
 import { ReminderEventGate, type ReminderEventKind } from '../core/reminderEventGate';
+import type { ExamInfoDisplayMode } from '../types/toolbar';
 
 // 轻量 Markdown 渲染器：使用浏览器原生实现，避免引入重依赖
 // 支持少量常见标记：# 标题、**加粗**、*斜体*、`行内代码`、换行
@@ -481,6 +484,30 @@ const largeClockScaleState = ref<number>(resolveInitialLargeClockScale());
 
 const examInfoLargeFontState = ref<boolean>(Boolean(props.examInfoLargeFont));
 
+// ===== 考试信息显示模式（scroll/stack/current），持久化到 localStorage =====
+const EXAM_INFO_DISPLAY_MODE_KEY = 'examaware:examInfoDisplayMode';
+const isValidDisplayMode = (v: unknown): v is ExamInfoDisplayMode =>
+  v === 'scroll' || v === 'stack' || v === 'current';
+
+const loadStoredExamInfoDisplayMode = (): ExamInfoDisplayMode => {
+  if (typeof window === 'undefined') return 'stack';
+  try {
+    const v = window.localStorage.getItem(EXAM_INFO_DISPLAY_MODE_KEY);
+    return isValidDisplayMode(v) ? v : 'stack';
+  } catch {
+    return 'stack';
+  }
+};
+
+const saveStoredExamInfoDisplayMode = (mode: ExamInfoDisplayMode) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(EXAM_INFO_DISPLAY_MODE_KEY, mode);
+  } catch {}
+};
+
+const examInfoDisplayModeState = ref<ExamInfoDisplayMode>(loadStoredExamInfoDisplayMode());
+
 const materialFontScaleState = ref<number>(clampMaterialFontScale(props.materialFontScale));
 
 // ===== 试卷/答题卡 页数/张数（集中控制可设置）=====
@@ -761,6 +788,12 @@ const handleExamInfoLargeFontToggle = (enabled: boolean) => {
   examInfoLargeFontState.value = flag;
   emit('update:examInfoLargeFont', flag);
   emit('examInfoLargeFontToggle', flag);
+};
+
+const handleExamInfoDisplayModeChange = (mode: ExamInfoDisplayMode) => {
+  if (!isValidDisplayMode(mode)) return;
+  examInfoDisplayModeState.value = mode;
+  saveStoredExamInfoDisplayMode(mode);
 };
 
 const handleMaterialFontScaleChange = (scale: number) => {
@@ -1450,6 +1483,7 @@ const ctxForCards = {
   largeClockEnabled: computed(() => largeClockState.value),
   largeClockScale: largeClockScaleState,
   examInfoLargeFont: computed(() => examInfoLargeFontState.value),
+  examInfoDisplayMode: computed(() => examInfoDisplayModeState.value),
   materialFontScale: computed(() => materialFontScaleState.value),
   auxiliaryFontScale: computed(() => auxiliaryFontScaleState.value),
   handleRoomNumberClick,
@@ -1669,8 +1703,6 @@ const resolvedCards = computed(() => {
   min-height: 0;
   display: flex;
   gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 2rem);
-  position: relative;
-  padding-bottom: 12px;
 }
 
 .bottom-left {
@@ -1908,12 +1940,10 @@ const resolvedCards = computed(() => {
   margin-top: 18px;
 }
 
-/* 底部考试进度条：位于 bottom-section 内部，紧贴两个卡片下方 */
+/* 底部考试进度条：位于 bottom-section 下方，与卡片左右对齐，保持间距 */
 .exam-progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  flex-shrink: 0;
+  margin-top: 0.5rem;
   height: 8px;
   background: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
@@ -1922,6 +1952,8 @@ const resolvedCards = computed(() => {
 .exam-progress-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 1s linear, background-color 0.5s ease;
+  transition:
+    width 1s linear,
+    background-color 0.5s ease;
 }
 </style>
