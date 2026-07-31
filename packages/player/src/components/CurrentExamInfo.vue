@@ -115,12 +115,8 @@ const groupedExamInfos = computed<DayGroup[]>(() => {
     };
   });
 
-  // 当前考试日期置顶，其余按日期顺序排列
-  return items.sort((a, b) => {
-    if (a.isCurrentDay && !b.isCurrentDay) return -1;
-    if (!a.isCurrentDay && b.isCurrentDay) return 1;
-    return a.date.localeCompare(b.date);
-  });
+  // 按日期原顺序排列，不移动当天到最前
+  return items.sort((a, b) => a.date.localeCompare(b.date));
 });
 
 // === current 模式：日期切换状态 ===
