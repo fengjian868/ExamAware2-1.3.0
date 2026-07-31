@@ -51,7 +51,7 @@
       </div>
 
       <!-- 底部左右分栏 -->
-      <div class="bottom-section">
+      <div class="bottom-section" :class="{ 'multi-day': isMultiDayExam }">
         <!-- 左侧：当前考试信息 -->
         <div class="bottom-left">
           <component :is="resolvedCards.examInfo" />
@@ -1231,6 +1231,22 @@ const displayFormattedExamInfos = computed(() => {
   return formatted;
 });
 
+// 判断考试是否跨多天：跨多天时压缩左侧卡片宽度，给右侧考试信息更多空间
+const isMultiDayExam = computed(() => {
+  const infos = sortedExamInfos.value || [];
+  if (infos.length === 0) return false;
+  const daySet = new Set<string>();
+  for (const info of infos) {
+    const start = info?.start;
+    if (!start) continue;
+    const d = new Date(start);
+    if (isNaN(d.getTime())) continue;
+    daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+    if (daySet.size > 1) return true;
+  }
+  return false;
+});
+
 // 显示剩余时间（考前倒计时或考试倒计时）
 const displayedRemainingTime = computed(() => {
   return remainingTime.value || '';
@@ -1667,15 +1683,26 @@ const resolvedCards = computed(() => {
 }
 
 .bottom-left {
-  width: 38%;
+  width: 45%;
   min-width: 0;
   overflow: hidden;
+  transition: width 0.3s ease;
 }
 
 .bottom-right {
-  width: 62%;
+  width: 55%;
   min-width: 0;
   overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+/* 跨多天考试时压缩左侧，给右侧考试信息更多空间 */
+.bottom-section.multi-day .bottom-left {
+  width: 38%;
+}
+
+.bottom-section.multi-day .bottom-right {
+  width: 62%;
 }
 
 /* 统一卡片间距（适配可插拔卡片） */

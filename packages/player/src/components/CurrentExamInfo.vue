@@ -241,10 +241,10 @@ const daysContainerClass = computed(() => {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* scroll 模式下 day-column 不收缩，设最小宽度 */
+/* scroll 模式：day-column 等宽分配，挤不下时滚动 */
 .days-grid .day-column {
-  flex: 0 0 auto;
-  min-width: calc(var(--ui-scale, 1) * 8rem);
+  flex: 1 1 0;
+  min-width: calc(var(--ui-scale, 1) * 7rem);
 }
 
 /* === stack 模式：纵向堆叠 === */
