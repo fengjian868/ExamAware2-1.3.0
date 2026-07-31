@@ -103,12 +103,19 @@ export class ControlCommandExecutor {
       )
       await fs.promises.writeFile(file, payload.config, 'utf-8')
       setSharedConfig(payload.config)
-      // forceRecreate=true：若 player 已存在则销毁重开，确保加载新配置
-      createPlayerWindow(file, true)
-      // 等待 player 窗口创建完成（不等配置加载完毕，但确保窗口存在），
-      // 避免控制端立即发 switch/end 等命令时报"播放器未运行"
-      await this.waitForPlayerReady(5000)
-      appLogger.info('[control] pushConfig 已创建 player 窗口', { autoPlay: payload.autoPlay })
+      if (payload.autoPlay) {
+        // forceRecreate=true：若 player 已存在则销毁重开，确保加载新配置
+        createPlayerWindow(file, true)
+        // 等待 player 窗口创建完成（不等配置加载完毕，但确保窗口存在），
+        // 避免控制端立即发 switch/end 等命令时报"播放器未运行"
+        await this.waitForPlayerReady(5000)
+        appLogger.info('[control] pushConfig 已创建 player 窗口', { autoPlay: payload.autoPlay })
+      } else {
+        // 仅存储档案到目标电脑，不打开播放器；后续可通过 openPlayer 命令打开
+        appLogger.info('[control] pushConfig 已保存档案（不打开播放器）', {
+          autoPlay: payload.autoPlay
+        })
+      }
       return { ok: true }
     } catch (err) {
       appLogger.error('[control] pushConfig failed', err as Error)

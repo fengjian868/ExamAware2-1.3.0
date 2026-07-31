@@ -228,6 +228,56 @@
             >
           </div>
         </div>
+
+        <!-- 历史打开记录 -->
+        <div class="cp-history">
+          <div class="cp-history-head">
+            <span>历史记录</span>
+            <t-button
+              v-if="historyRecords.length"
+              variant="text"
+              size="small"
+              theme="danger"
+              @click="clearHistory"
+              >清空</t-button
+            >
+          </div>
+          <div v-if="!historyRecords.length" class="cp-hint" style="padding: 8px 16px">
+            推送/加载档案后将显示在此
+          </div>
+          <div v-else class="cp-history-list">
+            <div v-for="h in historyRecords" :key="h.id" class="cp-history-item">
+              <div class="cp-history-main">
+                <div class="cp-history-name" :title="h.filePath">
+                  {{ h.examName || h.fileName }}
+                </div>
+                <div class="cp-history-sub">
+                  <span class="cp-history-tag">{{ historyActionText(h.action) }}</span>
+                  <span>{{ formatHistoryTime(h.openedAt) }}</span>
+                  <span v-if="h.action === 'pushConfig' && h.totalCount"
+                    >· {{ h.successCount }}/{{ h.totalCount }} 成功</span
+                  >
+                  <span
+                    v-if="h.targets.length"
+                    :title="h.targets.map((t) => t.deviceName).join('、')"
+                    >· {{ h.targets.length }} 台</span
+                  >
+                </div>
+              </div>
+              <div class="cp-history-ops">
+                <t-button
+                  v-if="h.action === 'pushConfig'"
+                  variant="text"
+                  size="small"
+                  theme="primary"
+                  @click="repushFromHistory(h)"
+                  >重推</t-button
+                >
+                <t-button variant="text" size="small" @click="removeHistory(h.id)">删</t-button>
+              </div>
+            </div>
+          </div>
+        </div>
       </aside>
     </div>
 
@@ -304,7 +354,14 @@
       />
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px">
         <span style="font-size: 13px; white-space: nowrap">显示时长</span>
-        <t-input-number v-model="broadcastDuration" :min="3" :max="300" :step="5" suffix="秒" style="flex: 1" />
+        <t-input-number
+          v-model="broadcastDuration"
+          :min="3"
+          :max="300"
+          :step="5"
+          suffix="秒"
+          style="flex: 1"
+        />
       </div>
     </t-dialog>
 
@@ -351,8 +408,66 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { NotifyPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useWindowControls } from '@renderer/composables/useWindowControls'
+import {
+  ControlHistoryManager,
+  type ControlHistoryEntry
+} from '@renderer/core/controlHistoryManager'
 
 const { platform } = useWindowControls()
+
+// ===== 历史打开记录 =====
+const historyRecords = ref<ControlHistoryEntry[]>([])
+const loadHistory = () => {
+  historyRecords.value = ControlHistoryManager.getHistory()
+}
+// 从档案内容中解析考试名（便于辨识）
+const parseExamName = (config: string): string | undefined => {
+  try {
+    const obj = JSON.parse(config)
+    return obj?.examName || obj?.examConfig?.examName || undefined
+  } catch {
+    return undefined
+  }
+}
+// 新增一条历史记录
+const addControlHistory = (payload: {
+  filePath: string
+  action: 'pushConfig' | 'loadPreset'
+  targets: { peerId: string; deviceName: string }[]
+  successCount: number
+  totalCount: number
+  examName?: string
+}) => {
+  ControlHistoryManager.addHistory(payload)
+  loadHistory()
+}
+const removeHistory = (id: string) => {
+  ControlHistoryManager.removeHistory(id)
+  loadHistory()
+}
+const clearHistory = () => {
+  ControlHistoryManager.clearHistory()
+  loadHistory()
+}
+// 从历史记录重新推送档案到当前已勾选设备
+const repushFromHistory = async (entry: ControlHistoryEntry) => {
+  const config = await window.api.readFile(entry.filePath)
+  if (!config) {
+    MessagePlugin.error('读取档案失败，文件可能已被移动或删除')
+    return
+  }
+  await pickAndPushConfig(
+    checkedIds.value.length ? checkedIds.value : entry.targets.map((t) => t.peerId)
+  )
+}
+// 历史记录时间格式化
+const formatHistoryTime = (ts: number) => {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const historyActionText = (a: string) =>
+  a === 'pushConfig' ? '推送档案' : a === 'loadPreset' ? '加载预设' : a
 
 interface DeviceStatus {
   playing: boolean
@@ -465,30 +580,49 @@ const sendOne = async (peerId: string, command: any) => {
   }
 }
 
-// 批量发送命令
-const batchSend = async (command: any) => {
-  if (!checkedIds.value.length) {
-    MessagePlugin.warning('请先勾选设备')
+// 逐台发送命令（模拟逐个点击单个按钮）：每台独立调用，失败不影响其他
+const sendSequentially = async (
+  peerIds: string[],
+  command: any,
+  label: string,
+  emptyHint = '请先勾选设备'
+) => {
+  if (!peerIds.length) {
+    MessagePlugin.warning(emptyHint)
     return
   }
+  const ids = [...peerIds]
   batchResults.value = []
-  batchProgress.value = { total: checkedIds.value.length, done: 0 }
-  pushLog(`批量 ${command.kind} → ${checkedIds.value.length} 台`)
-  try {
-    const res = await api.sendCommand(checkedIds.value, command)
-    batchResults.value = res || []
-    batchProgress.value = { total: checkedIds.value.length, done: batchResults.value.length }
-    const okCount = batchResults.value.filter((r) => r.result?.ok).length
-    pushLog(`批量 ${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '批量发送异常'
-    pushLog(`批量 ${command.kind} 异常：${msg}`, false)
-    MessagePlugin.error(msg)
-    batchProgress.value = { total: 0, done: 0 }
+  batchProgress.value = { total: ids.length, done: 0 }
+  pushLog(`${label} → ${ids.length} 台`)
+  for (const id of ids) {
+    pushLog(`→ ${deviceName(id)}：${command.kind}`)
+    try {
+      const res = await api.sendCommand([id], command)
+      const r = res?.[0] || { peerId: id, result: { ok: false, error: '无回执' } }
+      batchResults.value.push(r)
+      const ok = !!r?.result?.ok
+      pushLog(
+        `${deviceName(id)} ${command.kind} ${ok ? '成功' : '失败：' + (r?.result?.error || '')}`,
+        ok
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '发送异常'
+      batchResults.value.push({ peerId: id, result: { ok: false, error: msg } })
+      pushLog(`${deviceName(id)} ${command.kind} 异常：${msg}`, false)
+    }
+    batchProgress.value = { total: ids.length, done: batchResults.value.length }
   }
+  const okCount = batchResults.value.filter((r) => r.result?.ok).length
+  pushLog(`${label} 完成：${okCount}/${batchResults.value.length} 成功`)
 }
 
-// 推送档案：选本地 .ea2 文件
+// 批量发送命令：逐台模拟点击单个按钮
+const batchSend = async (command: any) => {
+  await sendSequentially(checkedIds.value, command, `批量 ${command.kind}`)
+}
+
+// 推送档案：选本地 .ea2 文件，逐台推送（仅存储，不打开播放器）
 const pickAndPushConfig = async (peerIds: string[]) => {
   if (!peerIds.length) {
     MessagePlugin.warning('请选择目标设备')
@@ -505,21 +639,36 @@ const pickAndPushConfig = async (peerIds: string[]) => {
     MessagePlugin.error('读取档案失败')
     return
   }
+  const ids = [...peerIds]
   batchResults.value = []
-  batchProgress.value = { total: peerIds.length, done: 0 }
-  pushLog(`推送档案 → ${peerIds.length} 台`)
-  try {
-    const res = await api.pushConfigFile(peerIds, config)
-    batchResults.value = res || []
-    batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
-    const okCount = batchResults.value.filter((r) => r.result?.ok).length
-    pushLog(`推送档案完成：${okCount}/${batchResults.value.length} 成功`)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '推送档案异常'
-    pushLog(`推送档案异常：${msg}`, false)
-    MessagePlugin.error(msg)
-    batchProgress.value = { total: 0, done: 0 }
+  batchProgress.value = { total: ids.length, done: 0 }
+  pushLog(`推送档案 → ${ids.length} 台`)
+  for (const id of ids) {
+    pushLog(`→ ${deviceName(id)}：推送档案`)
+    try {
+      const res = await api.pushConfigFile([id], config)
+      const r = res?.[0] || { peerId: id, result: { ok: false, error: '无回执' } }
+      batchResults.value.push(r)
+      const ok = !!r?.result?.ok
+      pushLog(`${deviceName(id)} 推送档案 ${ok ? '成功' : '失败：' + (r?.result?.error || '')}`, ok)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '推送异常'
+      batchResults.value.push({ peerId: id, result: { ok: false, error: msg } })
+      pushLog(`${deviceName(id)} 推送档案 异常：${msg}`, false)
+    }
+    batchProgress.value = { total: ids.length, done: batchResults.value.length }
   }
+  const okCount = batchResults.value.filter((r) => r.result?.ok).length
+  pushLog(`推送档案完成：${okCount}/${batchResults.value.length} 成功`)
+  // 记录历史（需求3）
+  addControlHistory({
+    filePath,
+    action: 'pushConfig',
+    targets: ids.map((id) => ({ peerId: id, deviceName: deviceName(id) })),
+    successCount: okCount,
+    totalCount: ids.length,
+    examName: parseExamName(config)
+  })
 }
 
 // 提醒对话框
@@ -585,7 +734,7 @@ const confirmSetPage = async () => {
   if (setPageTarget.value.length === 1) {
     await sendOne(setPageTarget.value[0], { kind: 'setMaterial', data })
   } else {
-    await batchSend({ kind: 'setMaterial', data })
+    await batchSendTo(setPageTarget.value, { kind: 'setMaterial', data })
   }
 }
 
@@ -619,25 +768,7 @@ const confirmBroadcast = async () => {
 }
 
 const batchSendTo = async (peerIds: string[], command: any) => {
-  if (!peerIds.length) {
-    MessagePlugin.warning('请选择目标设备')
-    return
-  }
-  batchResults.value = []
-  batchProgress.value = { total: peerIds.length, done: 0 }
-  pushLog(`${command.kind} → ${peerIds.length} 台`)
-  try {
-    const res = await api.sendCommand(peerIds, command)
-    batchResults.value = res || []
-    batchProgress.value = { total: peerIds.length, done: batchResults.value.length }
-    const okCount = batchResults.value.filter((r) => r.result?.ok).length
-    pushLog(`${command.kind} 完成：${okCount}/${batchResults.value.length} 成功`)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '发送异常'
-    pushLog(`${command.kind} 异常：${msg}`, false)
-    MessagePlugin.error(msg)
-    batchProgress.value = { total: 0, done: 0 }
-  }
+  await sendSequentially(peerIds, command, command.kind, '请选择目标设备')
 }
 
 // ===== 功能 D：画面预览（系统级截图，手动点按，支持选屏） =====
@@ -743,6 +874,14 @@ const loadPresetFromFile = async () => {
     if (!presetSteps.value.length) {
       MessagePlugin.info('档案未含预设，可手动添加步骤后保存')
     }
+    addControlHistory({
+      filePath,
+      action: 'loadPreset',
+      targets: [],
+      successCount: 0,
+      totalCount: 0,
+      examName: parseExamName(config)
+    })
   } catch {
     MessagePlugin.error('解析档案失败')
     presetSteps.value = []
@@ -824,20 +963,13 @@ const executePreset = async () => {
     for (const step of presetSteps.value) {
       const command: any = { kind: step.command }
       if (step.command === 'pushConfig') {
-        command.data = { config: currentPresetConfig.value, autoPlay: true }
+        // 推送档案仅存储，不自动开播放器；如需打开请单独加"打开播放器"步骤
+        command.data = { config: currentPresetConfig.value, autoPlay: false }
       } else if (step.data !== undefined) {
         command.data = step.data
       }
       pushLog(`预设步骤：${presetStepLabel(step)}`)
-      batchProgress.value = { total: checkedIds.value.length, done: 0 }
-      const res = await api.sendCommand(checkedIds.value, command)
-      batchResults.value = res || []
-      batchProgress.value = {
-        total: checkedIds.value.length,
-        done: batchResults.value.length
-      }
-      const okCount = batchResults.value.filter((r) => r.result?.ok).length
-      pushLog(`步骤完成：${okCount}/${batchResults.value.length} 成功`)
+      await sendSequentially(checkedIds.value, command, `步骤·${presetStepLabel(step)}`)
       if (step.delayMs && step.delayMs > 0) {
         pushLog(`等待 ${step.delayMs / 1000}s…`)
         await new Promise((r) => setTimeout(r, step.delayMs))
@@ -860,6 +992,7 @@ let unsubBatchProgress: (() => void) | null = null
 let listTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
+  loadHistory()
   devices.value = await api.listDevices()
   unsubDevices = api.onDevices((list) => {
     devices.value = list
@@ -1267,6 +1400,71 @@ void ipc
 }
 .cp-preset-actions .t-button {
   flex: 1;
+}
+
+/* 历史打开记录 */
+.cp-history {
+  margin-top: 16px;
+  border-top: 1px solid var(--td-border-level-1-color);
+  padding-top: 12px;
+}
+.cp-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+}
+.cp-history-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.cp-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--td-border-level-1-color);
+}
+.cp-history-item:last-child {
+  border-bottom: none;
+}
+.cp-history-main {
+  flex: 1;
+  min-width: 0;
+}
+.cp-history-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--td-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cp-history-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--td-text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cp-history-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--td-brand-color-light);
+  color: var(--td-brand-color);
+  font-size: 11px;
+}
+.cp-history-ops {
+  display: flex;
+  flex-shrink: 0;
 }
 
 /* 画面预览（功能 D） */

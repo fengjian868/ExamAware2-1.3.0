@@ -94,7 +94,7 @@ export class ControlController {
     }
     const command: ControlCommand = {
       kind: 'pushConfig',
-      data: { config: payload.config, autoPlay: true }
+      data: { config: payload.config, autoPlay: false }
     }
     const results: Array<{ peerId: string; result: any }> = []
     const sender = e.sender
