@@ -26,7 +26,7 @@
         <div class="day-title">{{ day.dateLabel }}</div>
         <div class="day-table-header">
           <div class="day-header-cell" style="flex: 0.6">时段</div>
-          <div class="day-header-cell" style="flex: 1.6">科目</div>
+          <div class="day-header-cell" style="flex: 1.4">科目</div>
           <div class="day-header-cell" style="flex: 1">开始</div>
           <div class="day-header-cell" style="flex: 1">结束</div>
           <div class="day-header-cell" style="flex: 0.8; text-align: right">状态</div>

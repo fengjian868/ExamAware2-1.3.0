@@ -47,7 +47,7 @@ const statusClass = computed(() => {
 <style scoped>
 .exam-table-row {
   display: grid;
-  grid-template-columns: 0.6fr 1.6fr 1fr 1fr 0.8fr;
+  grid-template-columns: 0.6fr 1.4fr 1fr 1fr 0.8fr;
   align-items: center;
   gap: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.4rem);
   padding: calc(var(--ui-scale, 1) * var(--density-scale, 1) * 0.45rem) 0;
