@@ -477,13 +477,20 @@ const largeClockScaleState = ref<number>(resolveInitialLargeClockScale());
 const examInfoLargeFontState = ref<boolean>(Boolean(props.examInfoLargeFont));
 
 // ===== 考试信息显示模式（scroll/stack/current），持久化到 localStorage =====
-const EXAM_INFO_DISPLAY_MODE_KEY = 'examaware:examInfoDisplayMode';
+// 使用带版本号的 key，旧版默认写入的 'stack' 值会被一次性重置为新的默认值 'scroll'
+const EXAM_INFO_DISPLAY_MODE_KEY = 'examaware:examInfoDisplayMode:v2';
+const LEGACY_EXAM_INFO_DISPLAY_MODE_KEY = 'examaware:examInfoDisplayMode';
 const isValidDisplayMode = (v: unknown): v is ExamInfoDisplayMode =>
   v === 'scroll' || v === 'stack' || v === 'current';
 
 const loadStoredExamInfoDisplayMode = (): ExamInfoDisplayMode => {
   if (typeof window === 'undefined') return 'scroll';
   try {
+    // 清除旧版残留值（旧版默认 stack 会污染新版默认值）
+    const legacy = window.localStorage.getItem(LEGACY_EXAM_INFO_DISPLAY_MODE_KEY);
+    if (legacy !== null) {
+      window.localStorage.removeItem(LEGACY_EXAM_INFO_DISPLAY_MODE_KEY);
+    }
     const v = window.localStorage.getItem(EXAM_INFO_DISPLAY_MODE_KEY);
     return isValidDisplayMode(v) ? v : 'scroll';
   } catch {
