@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, watchEffect, provide, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch, watchEffect, provide } from 'vue';
 // 为避免 SFC 类型解析跨包问题，这里使用本地最小类型定义
 type ExamConfig = {
   examName: string;
@@ -846,19 +846,6 @@ const handleCloseColorfulAlert = () => {
 // === 提醒服务 ===
 // colorful 提醒派生
 const colorfulVisible = reminder.isColorfulVisible;
-// 全屏提醒显示/隐藏后，强制重绘 TDesign InputNumber column 按钮，修复加减按钮消失问题
-watch(colorfulVisible, () => {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      document.querySelectorAll('.t-slider__input .t-input-number').forEach((el) => {
-        const node = el as HTMLElement;
-        node.style.display = 'none';
-        node.offsetHeight; // 强制回流
-        node.style.display = '';
-      });
-    });
-  });
-});
 const colorfulTitle = computed(() => reminder._colorfulReminder.value?.title || '提示');
 const colorfulOverlayStyle = computed(() => {
   const base = reminder._colorfulReminder.value?.themeBaseColor || '#ff3b30';

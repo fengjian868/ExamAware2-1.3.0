@@ -411,7 +411,7 @@ const showControlsAndScheduleHide = (
   scheduleHide(field);
 };
 
-// 监听状态变化：考试未开始时始终显示加减号；考试开始后值>0则隐藏
+// 监听状态变化：考试未开始时始终显示加减号；考试一开始值>0则立即隐藏（用户再次点击会短暂显示）
 watch(
   () => [ctx.examStatus?.value?.status, isPreStart.value] as const,
   ([status, preStart]) => {
@@ -426,7 +426,8 @@ watch(
       // 清除所有隐藏定时器
       Object.keys(hideTimers).forEach(clearHideTimer);
     } else if (status === 'inProgress') {
-      // 考试进行中：值为0时显示，值>0时启动隐藏计时
+      // 考试进行中：值为0时显示（待用户输入），值>0时立即隐藏
+      // （考试一开始就消失，用户主动点击 +/- 或聚焦输入框时会短暂显示，10秒后再自动隐藏）
       (['paperPages', 'paperSheets', 'answerPages', 'answerSheets'] as const).forEach((field) => {
         const val =
           field === 'paperPages'
@@ -440,7 +441,8 @@ watch(
           showControls.value[field] = true;
           clearHideTimer(field);
         } else {
-          scheduleHide(field);
+          showControls.value[field] = false;
+          clearHideTimer(field);
         }
       });
     }
