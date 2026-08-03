@@ -401,7 +401,7 @@ const scheduleHide = (field: 'paperPages' | 'paperSheets' | 'answerPages' | 'ans
     if (val > 0) {
       showControls.value[field] = false;
     }
-  }, 10000);
+  }, 5000);
 };
 
 const showControlsAndScheduleHide = (
@@ -411,10 +411,10 @@ const showControlsAndScheduleHide = (
   scheduleHide(field);
 };
 
-// 监听状态变化：考试未开始时始终显示加减号；考试一开始值>0则立即隐藏（用户再次点击会短暂显示）
+// 监听状态变化：只在状态真正切换时执行，避免每秒倒计时触发重复清除定时器导致加减号闪现后消失
 watch(
-  () => [ctx.examStatus?.value?.status, isPreStart.value] as const,
-  ([status, preStart]) => {
+  () => ctx.examStatus?.value?.status,
+  (status, prevStatus) => {
     if (status === 'pending') {
       // 未开始（含即将开始）：始终显示加减号
       showControls.value = {
@@ -425,9 +425,9 @@ watch(
       };
       // 清除所有隐藏定时器
       Object.keys(hideTimers).forEach(clearHideTimer);
-    } else if (status === 'inProgress') {
-      // 考试进行中：值为0时显示（待用户输入），值>0时立即隐藏
-      // （考试一开始就消失，用户主动点击 +/- 或聚焦输入框时会短暂显示，10秒后再自动隐藏）
+    } else if (status === 'inProgress' && prevStatus !== 'inProgress') {
+      // 仅在真正进入考试时执行一次：值为0时显示（待用户输入），值>0时立即隐藏
+      // 之后用户点击 +/- 或聚焦输入框时会短暂显示，5秒后再自动隐藏
       (['paperPages', 'paperSheets', 'answerPages', 'answerSheets'] as const).forEach((field) => {
         const val =
           field === 'paperPages'
